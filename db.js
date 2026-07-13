@@ -114,24 +114,165 @@ export class ClinicDB {
     });
   }
 
-  // Generic DB APIs
-  static getStoreData(storeName) {
+  // --- SUPABASE CLOUD SYNC HELPER METHODS ---
+  static async getSupabaseConfig() {
+    try {
+      // Note: We bypass recursive config check by loading directly from IndexedDB bypassing generic wrapper
+      const settings = await this.runTx('clinic_settings', 'readonly', (store) => store.getAll());
+      const general = settings.find(s => s.key === 'general') || {};
+      if (general.supabaseEnabled && general.supabaseUrl && general.supabaseKey) {
+        return {
+          url: general.supabaseUrl.trim().replace(/\/$/, ''),
+          key: general.supabaseKey.trim()
+        };
+      }
+    } catch (e) {
+      console.warn("Failed to read Supabase config:", e);
+    }
+    return null;
+  }
+
+  static async requestSupabase(config, method, endpoint, body = null) {
+    const headers = {
+      'apikey': config.key,
+      'Authorization': `Bearer ${config.key}`,
+      'Content-Type': 'application/json'
+    };
+    if (method === 'POST') {
+      headers['Prefer'] = 'resolution=merge-duplicates';
+    }
+    const options = {
+      method: method,
+      headers: headers
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch(`${config.url}/rest/v1/${endpoint}`, options);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Supabase Request Failed: ${response.statusText} (${errText})`);
+    }
+    if (method === 'DELETE' || response.status === 204) {
+      return null;
+    }
+    return await response.json();
+  }
+
+  static async pushLocalDataToSupabase() {
+    const config = await this.getSupabaseConfig();
+    if (!config) {
+      throw new Error("กรุณากรอกข้อมูลและเปิดใช้งานระบบซิงค์ออนไลน์ (Supabase Sync) ในหน้าตั้งค่าก่อนกดปุ่มนี้");
+    }
+
+    const stores = [
+      'patients', 'queues', 'inventory', 'sales', 'finance', 
+      'appointments', 'patient_courses', 'followups', 'stock_movements', 
+      'employees', 'clinic_services', 'price_packages', 'clinic_settings',
+      'service_records', 'medical_records', 'income_transactions', 
+      'expense_transactions', 'startup_costs', 'payment_methods', 'course_usage_logs'
+    ];
+
+    let totalUploaded = 0;
+    for (const storeName of stores) {
+      const items = await this.runTx(storeName, 'readonly', (store) => store.getAll());
+      for (const item of items) {
+        const recordId = String(item.id !== undefined ? item.id : item.key);
+        if (recordId !== undefined && recordId !== 'null' && recordId !== 'undefined') {
+          await this.requestSupabase(config, 'POST', 'clinic_store', {
+            store_name: storeName,
+            record_id: recordId,
+            data: item
+          });
+          totalUploaded++;
+        }
+      }
+    }
+    return totalUploaded;
+  }
+
+  // --- GENERIC DB CRUD APIs (WITH ONLINE SUPABASE SYNC) ---
+  static async getStoreData(storeName) {
+    const config = await this.getSupabaseConfig();
+    if (config) {
+      try {
+        const rows = await this.requestSupabase(config, 'GET', `clinic_store?store_name=eq.${storeName}&select=data`);
+        const items = rows.map(r => r.data);
+        
+        // Synchronize local IndexedDB
+        await this.runTx(storeName, 'readwrite', (store) => {
+          store.clear();
+          items.forEach(item => store.put(item));
+        });
+        
+        return items;
+      } catch (err) {
+        console.error(`Failed to fetch ${storeName} from Supabase, falling back to local:`, err);
+      }
+    }
     return this.runTx(storeName, 'readonly', (store) => store.getAll());
   }
 
-  static addStoreData(storeName, item) {
-    return this.runTx(storeName, 'readwrite', (store) => store.add({
+  static async addStoreData(storeName, item) {
+    const localId = await this.runTx(storeName, 'readwrite', (store) => store.add({
       ...item,
       createdAt: new Date().toISOString()
     }));
+    
+    const resolvedItem = { ...item };
+    if (typeof localId === 'number' || typeof localId === 'string') {
+      if (item.id === undefined) {
+        resolvedItem.id = localId;
+      }
+    }
+    
+    const config = await this.getSupabaseConfig();
+    if (config) {
+      try {
+        const recordId = String(resolvedItem.id !== undefined ? resolvedItem.id : resolvedItem.key);
+        await this.requestSupabase(config, 'POST', 'clinic_store', {
+          store_name: storeName,
+          record_id: recordId,
+          data: resolvedItem
+        });
+      } catch (err) {
+        console.error(`Failed to sync added item in ${storeName} to Supabase:`, err);
+      }
+    }
+    return localId;
   }
 
-  static putStoreData(storeName, item) {
-    return this.runTx(storeName, 'readwrite', (store) => store.put(item));
+  static async putStoreData(storeName, item) {
+    const localResult = await this.runTx(storeName, 'readwrite', (store) => store.put(item));
+    
+    const config = await this.getSupabaseConfig();
+    if (config) {
+      try {
+        const recordId = String(item.id !== undefined ? item.id : item.key);
+        await this.requestSupabase(config, 'POST', 'clinic_store', {
+          store_name: storeName,
+          record_id: recordId,
+          data: item
+        });
+      } catch (err) {
+        console.error(`Failed to sync updated item in ${storeName} to Supabase:`, err);
+      }
+    }
+    return localResult;
   }
 
-  static deleteStoreData(storeName, id) {
-    return this.runTx(storeName, 'readwrite', (store) => store.delete(id));
+  static async deleteStoreData(storeName, id) {
+    const localResult = await this.runTx(storeName, 'readwrite', (store) => store.delete(id));
+    
+    const config = await this.getSupabaseConfig();
+    if (config) {
+      try {
+        await this.requestSupabase(config, 'DELETE', `clinic_store?store_name=eq.${storeName}&record_id=eq.${id}`);
+      } catch (err) {
+        console.error(`Failed to sync deleted item in ${storeName} to Supabase:`, err);
+      }
+    }
+    return localResult;
   }
 
   // --- Patients API ---

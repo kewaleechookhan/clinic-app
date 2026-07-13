@@ -2261,6 +2261,10 @@ export function renderCourses(state) {
         <h2>ระบบบันทึกคอร์สและการใช้แพ็กเกจรักษาของลูกค้า</h2>
         <p>เปิดดูรายการคอร์สที่ลูกค้าสมัครและประวัติตัดการใช้งานคงเหลือสะสม</p>
       </div>
+      <button class="btn btn-primary" id="btn-add-course">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 5v14M5 12h14"/></svg>
+        สมัครคอร์สใหม่ให้คนไข้
+      </button>
     </div>
 
     <div class="card">
@@ -2346,10 +2350,109 @@ export function renderCourses(state) {
         </div>
       </div>
     </div>
+
+    <!-- Modal: Register New Patient Course (Checkpoint 7) -->
+    <div class="modal-backdrop" id="modal-course-add" style="display:none;">
+      <div class="modal-container" style="max-width:450px;">
+        <div class="modal-header">
+          <h3>สมัครคอร์สแพ็กเกจใหม่ให้คนไข้</h3>
+          <button class="close-btn" id="modal-course-add-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="form-course-add-pat">
+            <div class="form-group">
+              <label for="course-add-patient">เลือกคนไข้ *</label>
+              <select id="course-add-patient" required class="form-control">
+                <option value="">-- เลือกคนไข้ --</option>
+                ${state.patients.map(p => `<option value="${p.id}">${p.name} (HN-${String(p.id).padStart(4, '0')})</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="course-add-package">เลือกคอร์สแพ็กเกจ *</label>
+              <select id="course-add-package" required class="form-control">
+                <option value="">-- เลือกคอร์สแพ็กเกจ --</option>
+                ${state.inventory.filter(i => i.type === 'package').map(pkg => `<option value="${pkg.id}" data-sessions="${pkg.sessions || 10}">${pkg.name} (฿${pkg.price.toLocaleString()})</option>`).join('')}
+              </select>
+            </div>
+            <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
+              <div class="form-group">
+                <label for="course-add-total">จำนวนครั้งทั้งหมด *</label>
+                <input type="number" class="form-control" id="course-add-total" value="10" required min="1">
+              </div>
+              <div class="form-group">
+                <label for="course-add-used">ใช้ไปแล้ว *</label>
+                <input type="number" class="form-control" id="course-add-used" value="0" required min="0">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-course-add-cancel">ยกเลิก</button>
+          <button class="btn btn-primary" form="form-course-add-pat" type="submit">บันทึกสมัครคอร์ส</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
 export function setupCoursesEvents(state, navigate) {
+  const modalAdd = document.getElementById('modal-course-add');
+  const closeMAdd = () => { if (modalAdd) modalAdd.style.display = 'none'; };
+
+  document.getElementById('btn-add-course')?.addEventListener('click', () => {
+    document.getElementById('form-course-add-pat').reset();
+    if (modalAdd) modalAdd.style.display = 'flex';
+  });
+
+  document.getElementById('modal-course-add-close')?.addEventListener('click', closeMAdd);
+  document.getElementById('btn-course-add-cancel')?.addEventListener('click', closeMAdd);
+
+  // Auto sessions set on package select
+  document.getElementById('course-add-package')?.addEventListener('change', (e) => {
+    const selectedOpt = e.target.options[e.target.selectedIndex];
+    const sessions = selectedOpt.dataset.sessions;
+    if (sessions) {
+      document.getElementById('course-add-total').value = sessions;
+    }
+  });
+
+  // Submit new course registration
+  document.getElementById('form-course-add-pat')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const patId = Number(document.getElementById('course-add-patient').value);
+    const pkgId = Number(document.getElementById('course-add-package').value);
+    const total = Number(document.getElementById('course-add-total').value);
+    const used = Number(document.getElementById('course-add-used').value);
+
+    const patient = state.patients.find(p => p.id === patId);
+    const pkg = state.inventory.find(i => i.id === pkgId);
+
+    if (!patient || !pkg) {
+      alert("ข้อมูลคนไข้หรือแพ็กเกจคอร์สไม่ถูกต้อง!");
+      return;
+    }
+    if (used > total) {
+      alert("จำนวนครั้งที่ใช้งานแล้วห้ามมากกว่าจำนวนครั้งสะสมรวม!");
+      return;
+    }
+
+    const newCourse = {
+      patientId: patId,
+      patientName: patient.name,
+      packageName: pkg.name,
+      totalSessions: total,
+      usedSessions: used,
+      status: used >= total ? 'completed' : 'active'
+    };
+
+    await ClinicDB.addStoreData('patient_courses', newCourse);
+    state.patient_courses = await ClinicDB.getStoreData('patient_courses');
+    
+    alert(`สมัครคอร์ส ${pkg.name} ให้คนไข้ ${patient.name} สำเร็จแล้ว!`);
+    closeMAdd();
+    navigate('courses');
+  });
+
   document.querySelectorAll('.btn-use-session').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const id = Number(e.target.dataset.id);
@@ -6048,7 +6151,7 @@ export function renderPricePackages(state) {
               <tr>
                 <td>PKG-${String(p.id).padStart(4, '0')}</td>
                 <td><strong>${p.name}</strong></td>
-                <td style="text-align:center;">${p.name.includes('5 ครั้ง') ? '5' : (p.name.includes('3 ครั้ง') ? '3' : '10')} ครั้ง</td>
+                <td style="text-align:center;">${p.sessions !== undefined ? p.sessions : (p.name.includes('5 ครั้ง') ? '5' : (p.name.includes('3 ครั้ง') ? '3' : '10'))} ครั้ง</td>
                 <td style="text-align:right; font-weight:700; color:var(--primary);">฿${p.price.toLocaleString()}</td>
                 <td style="text-align:right; color:var(--gray-500);">฿${p.cost.toLocaleString()}</td>
                 <td style="text-align:center; white-space:nowrap;">
@@ -6073,8 +6176,12 @@ export function renderPricePackages(state) {
           <form id="form-pkg-def">
             <input type="hidden" id="pd-editing-id" value="">
             <div class="form-group">
-              <label for="pd-name">ชื่อแพ็กเกจคอร์ส (ระบุจำนวนครั้งลงในชื่อด้วย) *</label>
-              <input type="text" class="form-control" id="pd-name" required placeholder="เช่น คอร์สนวดประคบสมุนไพรบำบัด (10 ครั้ง)">
+              <label for="pd-name">ชื่อแพ็กเกจคอร์ส *</label>
+              <input type="text" class="form-control" id="pd-name" required placeholder="เช่น คอร์สนวดประคบสมุนไพรบำบัด">
+            </div>
+            <div class="form-group">
+              <label for="pd-sessions">จำนวนครั้งของการเข้าทำบริการบำบัดรักษาในคอร์ส *</label>
+              <input type="number" class="form-control" id="pd-sessions" required min="1" placeholder="10" value="10">
             </div>
             <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
               <div class="form-group">
@@ -6103,6 +6210,7 @@ export function setupPricePackagesEvents(state, navigate) {
   document.getElementById('btn-pkg-add')?.addEventListener('click', () => {
     document.getElementById('form-pkg-def').reset();
     document.getElementById('pd-editing-id').value = '';
+    document.getElementById('pd-sessions').value = '10';
     document.getElementById('pd-modal-title').textContent = 'ลงทะเบียนสร้างคอร์สใหม่';
     modal.style.display = 'flex';
   });
@@ -6122,6 +6230,7 @@ export function setupPricePackagesEvents(state, navigate) {
       document.getElementById('pd-name').value = pkg.name || '';
       document.getElementById('pd-price').value = pkg.price;
       document.getElementById('pd-cost').value = pkg.cost;
+      document.getElementById('pd-sessions').value = pkg.sessions !== undefined ? pkg.sessions : (pkg.name.includes('5 ครั้ง') ? 5 : (pkg.name.includes('3 ครั้ง') ? 3 : 10));
       
       document.getElementById('pd-modal-title').textContent = 'แก้ไขคอร์สแพ็กเกจ';
       modal.style.display = 'flex';
@@ -6132,11 +6241,12 @@ export function setupPricePackagesEvents(state, navigate) {
     e.preventDefault();
     const price = Number(document.getElementById('pd-price').value);
     const cost = Number(document.getElementById('pd-cost').value);
+    const sessions = Number(document.getElementById('pd-sessions').value);
     const editingId = document.getElementById('pd-editing-id').value;
 
     // VALIDATION: non-negative check
-    if (price < 0 || cost < 0) {
-      alert('ราคาตั้งของคอร์สหรือต้นทุนสะสมห้ามมีค่าติดลบ!');
+    if (price < 0 || cost < 0 || sessions < 1) {
+      alert('ราคาตั้งของคอร์ส ต้นทุนสะสม หรือจำนวนครั้งห้ามติดลบและต้องไม่น้อยกว่า 1 ครั้ง!');
       return;
     }
 
@@ -6145,6 +6255,7 @@ export function setupPricePackagesEvents(state, navigate) {
       type: 'package',
       price: price,
       cost: cost,
+      sessions: sessions,
       stock: 9999,
       unit: 'คอร์ส'
     };
@@ -6255,6 +6366,40 @@ export function renderClinicSettings(state) {
           <textarea id="set-address" rows="3" required>${info.address || ''}</textarea>
         </div>
 
+        <!-- Supabase Cloud Sync Section (Checkpoint 7) -->
+        <div style="border-top:2px dashed var(--gray-200); padding-top:20px; margin-top:20px; margin-bottom:20px;">
+          <h3 style="font-weight:700; font-size:16px; margin-bottom:4px; color:var(--primary);">
+            ตั้งค่าระบบคลาวด์ออนไลน์ (Supabase Sync)
+          </h3>
+          <p style="color:var(--gray-500); font-size:12px; margin-bottom:12px; line-height:1.4;">
+            เปิดใช้งานการซิงค์ข้อมูลเรียลไทม์กับฐานข้อมูลคลาวด์ส่วนกลาง เพื่อเชื่อมโยงข้อมูลระหว่าง PC, iPad และอุปกรณ์เคลื่อนที่อื่นๆ
+          </p>
+          
+          <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <input type="checkbox" id="set-supabase-enabled" ${info.supabaseEnabled ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;">
+            <label for="set-supabase-enabled" style="font-weight:600; cursor:pointer; margin-bottom:0;">เปิดใช้งานการเชื่อมต่อซิงค์ออนไลน์</label>
+          </div>
+          
+          <div class="form-group">
+            <label for="set-supabase-url">Supabase Project URL</label>
+            <input type="text" class="form-control" id="set-supabase-url" placeholder="https://your-project-id.supabase.co" value="${info.supabaseUrl || ''}">
+          </div>
+          
+          <div class="form-group">
+            <label for="set-supabase-key">Supabase Anon API Key</label>
+            <input type="password" class="form-control" id="set-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." value="${info.supabaseKey || ''}">
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button type="button" class="btn btn-secondary" id="btn-test-supabase" style="flex:1;">
+              ทดสอบการเชื่อมต่อคลาวด์
+            </button>
+            <button type="button" class="btn btn-danger" id="btn-push-supabase" style="flex:1;">
+              อัปโหลดประวัติเข้าออนไลน์ครั้งแรก
+            </button>
+          </div>
+        </div>
+
         <button type="submit" class="btn btn-primary" style="width:100%; margin-top:16px;">
           บันทึกการปรับปรุงประวัติคลินิก
         </button>
@@ -6297,6 +6442,70 @@ export function setupClinicSettingsEvents(state, navigate) {
     if (fileInput) fileInput.value = '';
   });
 
+  // Test Supabase Connection Click
+  document.getElementById('btn-test-supabase')?.addEventListener('click', async () => {
+    const url = document.getElementById('set-supabase-url').value.trim();
+    const key = document.getElementById('set-supabase-key').value.trim();
+    if (!url || !key) {
+      alert("กรุณากรอกข้อมูล Supabase URL และ Anon API Key ก่อนกดปุ่มนี้ครับ");
+      return;
+    }
+
+    const testConfig = {
+      url: url.replace(/\/$/, ''),
+      key: key
+    };
+
+    try {
+      await ClinicDB.requestSupabase(testConfig, 'GET', 'clinic_store?select=id&limit=1');
+      alert("🟢 เชื่อมต่อกับฐานข้อมูล Supabase สำเร็จแล้ว! ตาราง clinic_store พร้อมใช้งาน");
+    } catch (err) {
+      console.error(err);
+      alert(`🔴 การเชื่อมต่อผิดพลาด! กรุณาตรวจสอบ:\n1. ความถูกต้องของ URL และ Key\n2. คุณได้รัน SQL Script สร้างตาราง clinic_store ในหน้าเว็บ Supabase แล้วหรือยัง\n\nรายละเอียดข้อผิดพลาด: ${err.message}`);
+    }
+  });
+
+  // Push Local Data to Supabase Click
+  document.getElementById('btn-push-supabase')?.addEventListener('click', async () => {
+    const info = {
+      key: 'general',
+      name: document.getElementById('set-name').value,
+      owner: document.getElementById('set-owner').value,
+      phone: document.getElementById('set-phone').value,
+      line: document.getElementById('set-line').value,
+      address: document.getElementById('set-address').value,
+      logo: document.getElementById('set-logo-base64').value,
+      supabaseEnabled: document.getElementById('set-supabase-enabled').checked,
+      supabaseUrl: document.getElementById('set-supabase-url').value,
+      supabaseKey: document.getElementById('set-supabase-key').value
+    };
+
+    await ClinicDB.putStoreData('clinic_settings', info);
+    window.appState.settings = info;
+
+    if (!info.supabaseEnabled || !info.supabaseUrl || !info.supabaseKey) {
+      alert("กรุณากรอกและติ๊กเปิดใช้งานระบบซิงค์ออนไลน์ (Supabase Sync) ก่อนกดปุ่มนำเข้าประวัติครับ");
+      return;
+    }
+
+    if (confirm("⚠️ คำเตือน: ระบบจะทำการส่งออกข้อมูลทั้งหมดที่อยู่ใน IndexedDB ในเครื่องคอมพิวเตอร์ของคุณ ขึ้นไปบันทึกทับในฐานข้อมูล Supabase ออนไลน์\n\nคุณต้องการเริ่มต้นอัปโหลดข้อมูลใช่หรือไม่?")) {
+      const btn = document.getElementById('btn-push-supabase');
+      const originalText = btn.textContent;
+      btn.textContent = "กำลังอัปโหลดข้อมูล... ⏳";
+      btn.disabled = true;
+      try {
+        const total = await ClinicDB.pushLocalDataToSupabase();
+        alert(`🟢 อัปโหลดประวัติและข้อมูลเข้าระบบออนไลน์สำเร็จทั้งหมดจำนวน ${total} รายการ! อุปกรณ์เครื่องอื่นที่เชื่อมต่อวงเดียวกันจะเห็นประวัตินี้ทันทีหลังรีเฟรช`);
+      } catch (err) {
+        console.error(err);
+        alert(`🔴 อัปโหลดล้มเหลว: ${err.message}`);
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+  });
+
   document.getElementById('form-settings')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -6307,7 +6516,10 @@ export function setupClinicSettingsEvents(state, navigate) {
       phone: document.getElementById('set-phone').value,
       line: document.getElementById('set-line').value,
       address: document.getElementById('set-address').value,
-      logo: document.getElementById('set-logo-base64').value
+      logo: document.getElementById('set-logo-base64').value,
+      supabaseEnabled: document.getElementById('set-supabase-enabled').checked,
+      supabaseUrl: document.getElementById('set-supabase-url').value,
+      supabaseKey: document.getElementById('set-supabase-key').value
     };
 
     // Save to clinic_settings V3
