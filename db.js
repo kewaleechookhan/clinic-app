@@ -153,7 +153,7 @@ export class ClinicDB {
       const errText = await response.text();
       throw new Error(`Supabase Request Failed: ${response.statusText} (${errText})`);
     }
-    if (method === 'DELETE' || response.status === 204) {
+    if (method === 'DELETE' || response.status === 204 || response.status === 201) {
       return null;
     }
     return await response.json();
