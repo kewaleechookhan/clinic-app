@@ -179,7 +179,7 @@ export class ClinicDB {
       for (const item of items) {
         const recordId = String(item.id !== undefined ? item.id : item.key);
         if (recordId !== undefined && recordId !== 'null' && recordId !== 'undefined') {
-          await this.requestSupabase(config, 'POST', 'clinic_store', {
+          await this.requestSupabase(config, 'POST', 'clinic_store?on_conflict=store_name,record_id', {
             store_name: storeName,
             record_id: recordId,
             data: item
@@ -230,7 +230,7 @@ export class ClinicDB {
     if (config) {
       try {
         const recordId = String(resolvedItem.id !== undefined ? resolvedItem.id : resolvedItem.key);
-        await this.requestSupabase(config, 'POST', 'clinic_store', {
+        await this.requestSupabase(config, 'POST', 'clinic_store?on_conflict=store_name,record_id', {
           store_name: storeName,
           record_id: recordId,
           data: resolvedItem
@@ -249,7 +249,7 @@ export class ClinicDB {
     if (config) {
       try {
         const recordId = String(item.id !== undefined ? item.id : item.key);
-        await this.requestSupabase(config, 'POST', 'clinic_store', {
+        await this.requestSupabase(config, 'POST', 'clinic_store?on_conflict=store_name,record_id', {
           store_name: storeName,
           record_id: recordId,
           data: item
