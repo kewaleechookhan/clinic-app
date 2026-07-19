@@ -2003,12 +2003,26 @@ export function renderConsultation(state) {
             <div style="display:flex; gap:10px; margin-bottom:8px;">
               <select id="sel-svc" style="flex-grow:1;">
                 <option value="">-- เลือกหัตถการหรือคอร์ส --</option>
-                <optgroup label="บริการรายครั้ง">
-                  ${services.map(s => `<option value="${s.id}">${s.name} - ฿${s.price}</option>`).join('')}
-                </optgroup>
-                <optgroup label="ซื้อคอร์สบำบัด">
-                  ${packages.map(p => `<option value="${p.id}">${p.name} - ฿${p.price}</option>`).join('')}
-                </optgroup>
+                ${services.filter(s => (s.serviceCategory || 'การรักษา') === 'การรักษา').length > 0 ? `
+                  <optgroup label="🩺 หัตถการเพื่อการรักษา">
+                    ${services.filter(s => (s.serviceCategory || 'การรักษา') === 'การรักษา').map(s => `<option value="${s.id}">${s.name} - ฿${s.price}</option>`).join('')}
+                  </optgroup>
+                ` : ''}
+                ${services.filter(s => s.serviceCategory === 'การผ่อนคลาย').length > 0 ? `
+                  <optgroup label="🌿 บริการเพื่อการผ่อนคลาย / สปา">
+                    ${services.filter(s => s.serviceCategory === 'การผ่อนคลาย').map(s => `<option value="${s.id}">${s.name} - ฿${s.price}</option>`).join('')}
+                  </optgroup>
+                ` : ''}
+                ${services.filter(s => s.serviceCategory === 'ความงาม').length > 0 ? `
+                  <optgroup label="✨ บริการเพื่อความงาม">
+                    ${services.filter(s => s.serviceCategory === 'ความงาม').map(s => `<option value="${s.id}">${s.name} - ฿${s.price}</option>`).join('')}
+                  </optgroup>
+                ` : ''}
+                ${packages.length > 0 ? `
+                  <optgroup label="📦 แพ็กเกจคอร์สบำบัดรักษา">
+                    ${packages.map(p => `<option value="${p.id}">${p.name} - ฿${p.price}</option>`).join('')}
+                  </optgroup>
+                ` : ''}
               </select>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-add-svc">เพิ่ม</button>
             </div>
@@ -3012,30 +3026,59 @@ export function renderBilling(state) {
             <thead>
               <tr>
                 <th>รายการ</th>
-                <th style="text-align:center;">จำนวน</th>
-                <th style="text-align:right;">ราคาต่อหน่วย</th>
-                <th style="text-align:right;">รวม</th>
+                <th style="text-align:center; width: 100px;">จำนวน</th>
+                <th style="text-align:right; width: 120px;">ราคาต่อหน่วย</th>
+                <th style="text-align:right; width: 100px;">รวม</th>
+                <th style="text-align:center; width: 50px;">ลบ</th>
               </tr>
             </thead>
             <tbody>
-              ${treatments.map(t => `
-                <tr>
-                  <td><strong>${t.name}</strong></td>
-                  <td style="text-align:center;">1</td>
-                  <td style="text-align:right;">฿${t.price}</td>
-                  <td style="text-align:right;">฿${t.price}</td>
+              ${treatments.map((t, idx) => `
+                <tr class="billing-item-row" data-type="treatment" data-index="${idx}">
+                  <td><strong style="color:var(--primary);">🩺 [บริการ] ${t.name}</strong></td>
+                  <td style="text-align:center; width: 100px;">
+                    <input type="number" class="form-control text-center bill-item-qty" data-type="treatment" data-index="${idx}" value="1" readonly style="width: 70px; margin: 0 auto; background: #f0f0f0; border-color:transparent;">
+                  </td>
+                  <td style="text-align:right; width: 120px;">
+                    <input type="number" class="form-control text-right bill-item-price" data-type="treatment" data-index="${idx}" value="${t.price}" style="width: 100px; margin-left: auto;">
+                  </td>
+                  <td style="text-align:right; font-weight:700; width: 100px; padding-top: 15px;" id="bill-row-total-treatment-${idx}">฿${t.price}</td>
+                  <td style="text-align:center; width: 50px;">
+                    <button type="button" class="btn btn-danger btn-sm btn-bill-del" data-type="treatment" data-index="${idx}">&times;</button>
+                  </td>
                 </tr>
               `).join('')}
-              ${prescriptions.map(p => `
-                <tr>
-                  <td><strong>${p.name}</strong></td>
-                  <td style="text-align:center;">${p.qty}</td>
-                  <td style="text-align:right;">฿${p.price}</td>
-                  <td style="text-align:right;">฿${p.price * p.qty}</td>
+              ${prescriptions.map((p, idx) => `
+                <tr class="billing-item-row" data-type="prescription" data-index="${idx}">
+                  <td><strong>💊 [ยา/สินค้า] ${p.name}</strong></td>
+                  <td style="text-align:center; width: 100px;">
+                    <input type="number" class="form-control text-center bill-item-qty" data-type="prescription" data-index="${idx}" value="${p.qty}" min="1" style="width: 70px; margin: 0 auto;">
+                  </td>
+                  <td style="text-align:right; width: 120px;">
+                    <input type="number" class="form-control text-right bill-item-price" data-type="prescription" data-index="${idx}" value="${p.price}" style="width: 100px; margin-left: auto;">
+                  </td>
+                  <td style="text-align:right; font-weight:700; width: 100px; padding-top: 15px;" id="bill-row-total-prescription-${idx}">฿${p.price * p.qty}</td>
+                  <td style="text-align:center; width: 50px;">
+                    <button type="button" class="btn btn-danger btn-sm btn-bill-del" data-type="prescription" data-index="${idx}">&times;</button>
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
+        </div>
+
+        <!-- Add item section -->
+        <div style="margin-top:16px; border-top:1px dashed var(--gray-200); padding-top:16px; margin-bottom:20px;">
+          <h4 style="font-weight:700; margin-bottom:8px; font-size:14px; color:var(--gray-700);">เพิ่มยาสมุนไพรหรือผลิตภัณฑ์สุขภาพเข้าบิล:</h4>
+          <div style="display:flex; gap:10px;">
+            <select id="bill-add-item-select" class="form-control" style="flex-grow:1; height:38px;">
+              <option value="">-- เลือกยาหรือผลิตภัณฑ์ในคลัง --</option>
+              ${state.inventory.filter(i => i.type === 'medicine').map(m => `<option value="${m.id}" data-price="${m.price}" ${m.stock < 1 ? 'disabled style="color:red;"' : ''}>💊 [ยา] ${m.name} (฿${m.price}) [คงคลัง: ${m.stock}]</option>`).join('')}
+              ${state.inventory.filter(i => i.type === 'product').map(p => `<option value="${p.id}" data-price="${p.price}" ${p.stock < 1 ? 'disabled style="color:red;"' : ''}>📦 [สินค้า] ${p.name} (฿${p.price}) [คงคลัง: ${p.stock}]</option>`).join('')}
+            </select>
+            <input type="number" id="bill-add-qty" class="form-control" value="1" min="1" style="width:80px; text-align:center; height:38px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-bill-add-item-submit" style="height:38px;">เพิ่มเข้าบิล</button>
+          </div>
         </div>
 
         <form id="form-final-pay">
@@ -3132,19 +3175,17 @@ export function setupBillingEvents(state, navigate) {
 
   const treatments = queueObj.treatments || [];
   const prescriptions = queueObj.prescriptions || [];
-  const treatmentSum = treatments.reduce((sum, t) => sum + t.price, 0);
-  const prescriptionSum = prescriptions.reduce((sum, p) => sum + (p.price * p.qty), 0);
-  const subtotal = treatmentSum + prescriptionSum;
+  let subtotal = 0;
 
   const discInput = document.getElementById('bill-disc');
   const reasonInput = document.getElementById('bill-reason');
   const methodSelect = document.getElementById('bill-pay-method');
 
   const updatePreview = () => {
-    const disc = Number(discInput.value) || 0;
+    const disc = Number(discInput?.value) || 0;
     const total = Math.max(0, subtotal - disc);
-    const method = methodSelect.value || 'เงินสด';
-    const reason = reasonInput.value || '-';
+    const method = methodSelect?.value || 'เงินสด';
+    const reason = reasonInput?.value || '-';
 
     const clinicName = state.settings?.name || 'เรือนสมุนไพรคลินิก';
     const clinicAddress = state.settings?.address || 'ระบบบริหารคลินิกการแพทย์แผนไทย';
@@ -3176,10 +3217,104 @@ export function setupBillingEvents(state, navigate) {
     `;
   };
 
+  const recalculateSums = () => {
+    const treatmentSum = treatments.reduce((sum, t) => sum + t.price, 0);
+    const prescriptionSum = prescriptions.reduce((sum, p) => sum + (p.price * p.qty), 0);
+    subtotal = treatmentSum + prescriptionSum;
+    updatePreview();
+  };
+
   discInput?.addEventListener('input', updatePreview);
   reasonInput?.addEventListener('input', updatePreview);
   methodSelect?.addEventListener('change', updatePreview);
-  updatePreview();
+  recalculateSums();
+
+  // Listen for billing item quantity edits
+  document.querySelectorAll('.bill-item-qty').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const type = e.target.dataset.type;
+      const idx = Number(e.target.dataset.index);
+      const val = Math.max(1, Number(e.target.value) || 1);
+      e.target.value = val;
+
+      if (type === 'prescription') {
+        prescriptions[idx].qty = val;
+      }
+      
+      const price = type === 'treatment' ? treatments[idx].price : prescriptions[idx].price;
+      const rowTotalCell = document.getElementById(`bill-row-total-${type}-${idx}`);
+      if (rowTotalCell) rowTotalCell.textContent = `฿${price * val}`;
+
+      recalculateSums();
+    });
+  });
+
+  // Listen for billing item price edits
+  document.querySelectorAll('.bill-item-price').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const type = e.target.dataset.type;
+      const idx = Number(e.target.dataset.index);
+      const val = Math.max(0, Number(e.target.value) || 0);
+      e.target.value = val;
+
+      if (type === 'treatment') {
+        treatments[idx].price = val;
+      } else {
+        prescriptions[idx].price = val;
+      }
+
+      const qty = type === 'treatment' ? 1 : prescriptions[idx].qty;
+      const rowTotalCell = document.getElementById(`bill-row-total-${type}-${idx}`);
+      if (rowTotalCell) rowTotalCell.textContent = `฿${val * qty}`;
+
+      recalculateSums();
+    });
+  });
+
+  // Listen for delete buttons
+  document.querySelectorAll('.btn-bill-del').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const type = e.target.dataset.type;
+      const idx = Number(e.target.dataset.index);
+      if (type === 'treatment') {
+        queueObj.treatments.splice(idx, 1);
+      } else {
+        queueObj.prescriptions.splice(idx, 1);
+      }
+      ClinicDB.updateQueue(queueObj).then(() => {
+        navigate('billing');
+      });
+    });
+  });
+
+  // Listen for add item button
+  document.getElementById('btn-bill-add-item-submit')?.addEventListener('click', () => {
+    const sel = document.getElementById('bill-add-item-select');
+    const itemId = Number(sel.value);
+    const qty = Math.max(1, Number(document.getElementById('bill-add-qty').value) || 1);
+    if (!itemId) {
+      alert('กรุณาเลือกยาหรือผลิตภัณฑ์สุขภาพก่อน!');
+      return;
+    }
+    const invItem = state.inventory.find(i => i.id === itemId);
+    if (!invItem) return;
+
+    const existing = queueObj.prescriptions.find(p => p.itemId === itemId);
+    if (existing) {
+      existing.qty += qty;
+    } else {
+      queueObj.prescriptions.push({
+        itemId: itemId,
+        name: invItem.name,
+        price: invItem.price,
+        qty: qty
+      });
+    }
+
+    ClinicDB.updateQueue(queueObj).then(() => {
+      navigate('billing');
+    });
+  });
 
   document.getElementById('btn-print-receipt-sim')?.addEventListener('click', () => {
     alert('ระบบส่งออกพิมพ์กระดาษความร้อน 80mm สำเร็จ!');
@@ -5962,7 +6097,7 @@ export function renderClinicServices(state) {
             <tr>
               <th>รหัสบริการ</th>
               <th>ชื่อบริการ / หัตถการ</th>
-              <th>ประเภท</th>
+              <th>ประเภทหมวดหมู่</th>
               <th style="text-align:right;">ราคาขายมาตรฐาน</th>
               <th style="text-align:right;">ต้นทุนโดยประมาณ</th>
               <th style="text-align:center;">การจัดการ</th>
@@ -5973,7 +6108,7 @@ export function renderClinicServices(state) {
               <tr>
                 <td>SVC-${String(s.id).padStart(4, '0')}</td>
                 <td><strong>${s.name}</strong></td>
-                <td><span class="badge primary">บริการรายครั้ง</span></td>
+                <td><span class="badge primary">${s.serviceCategory || 'การรักษา'}</span></td>
                 <td style="text-align:right; font-weight:700; color:var(--primary);">฿${s.price.toLocaleString()}</td>
                 <td style="text-align:right; color:var(--gray-500);">฿${s.cost.toLocaleString()}</td>
                 <td style="text-align:center; white-space:nowrap;">
@@ -6000,6 +6135,14 @@ export function renderClinicServices(state) {
             <div class="form-group">
               <label for="sd-name">ชื่อบริการ / หัตถการบำบัด *</label>
               <input type="text" class="form-control" id="sd-name" required placeholder="เช่น นวดบำบัดอาการปวดหลัง, นวดอโรม่าตัว">
+            </div>
+            <div class="form-group">
+              <label for="sd-category">ประเภทหมวดหมู่บริการ *</label>
+              <select id="sd-category" class="form-control" required>
+                <option value="การรักษา">การรักษา (Treatment)</option>
+                <option value="การผ่อนคลาย">การผ่อนคลาย (Relaxation/Spa)</option>
+                <option value="ความงาม">ความงาม (Beauty)</option>
+              </select>
             </div>
             <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
               <div class="form-group">
@@ -6028,6 +6171,7 @@ export function setupClinicServicesEvents(state, navigate) {
   document.getElementById('btn-svc-add')?.addEventListener('click', () => {
     document.getElementById('form-svc-def').reset();
     document.getElementById('sd-editing-id').value = '';
+    document.getElementById('sd-category').value = 'การรักษา';
     document.getElementById('sd-modal-title').textContent = 'ลงทะเบียนสร้างบริการใหม่';
     modal.style.display = 'flex';
   });
@@ -6047,6 +6191,7 @@ export function setupClinicServicesEvents(state, navigate) {
       document.getElementById('sd-name').value = svc.name || '';
       document.getElementById('sd-price').value = svc.price;
       document.getElementById('sd-cost').value = svc.cost;
+      document.getElementById('sd-category').value = svc.serviceCategory || 'การรักษา';
       
       document.getElementById('sd-modal-title').textContent = 'แก้ไขบริการ / หัตถการ';
       modal.style.display = 'flex';
@@ -6070,6 +6215,7 @@ export function setupClinicServicesEvents(state, navigate) {
       type: 'service',
       price: price,
       cost: cost,
+      serviceCategory: document.getElementById('sd-category').value,
       stock: 9999,
       unit: 'ครั้ง'
     };
