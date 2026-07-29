@@ -4814,6 +4814,29 @@ export function setupFinancialReportsEvents(state, navigate) {
 // -------------------------------------------------------------
 export function renderHerbs(state) {
   const list = state.inventory.filter(i => i.type === 'medicine');
+  const internalHerbs = list.filter(h => (h.subCategory || 'ยาสมุนไพรรักษาโรค') === 'ยาสมุนไพรรักษาโรค');
+  const externalHerbs = list.filter(h => h.subCategory === 'ยาใช้ภายนอก');
+
+  const renderHerbRow = (h) => `
+    <tr>
+      <td>HERB-${String(h.id).padStart(4, '0')}</td>
+      <td><strong>${h.name}</strong></td>
+      <td style="text-align:right; color:var(--gray-500);">
+        ${h.isConsignment ? `<span class="badge warning" style="font-size:10px; padding:2px 4px;">ฝากขาย</span> ฿0` : `฿${h.cost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}`}
+      </td>
+      <td style="text-align:right; font-weight:600; color:var(--primary);">฿${h.price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
+      <td style="text-align:center; font-weight:700; color:${h.stock < 5 ? 'var(--danger)' : 'var(--dark)'}">${h.stock}</td>
+      <td>${h.unit || 'ขวด'}</td>
+      <td><span style="color:${h.expiry && new Date(h.expiry) < new Date() ? 'var(--danger)' : 'var(--dark)'}">${h.expiry ? new Date(h.expiry).toLocaleDateString('th-TH') : '-'}</span></td>
+      <td style="text-align:center; white-space:nowrap;">
+        <div style="display:flex; gap:6px; justify-content:center;">
+          <button class="btn btn-secondary btn-sm btn-edit-herb" data-id="${h.id}">แก้ไข</button>
+          <button class="btn btn-danger btn-sm btn-delete-herb" data-id="${h.id}">ลบ</button>
+        </div>
+      </td>
+    </tr>
+  `;
+
   return `
     ${renderSeedDataBanner(state)}
     <div class="page-header">
@@ -4827,7 +4850,9 @@ export function renderHerbs(state) {
       </button>
     </div>
 
-    <div class="card">
+    <!-- Section 1: ยาสมุนไพรรักษาโรค -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--primary);">💊 ยาสมุนไพรรักษาโรค (${internalHerbs.length} รายการ)</h3>
       <div class="table-container">
         <table>
           <thead>
@@ -4843,26 +4868,34 @@ export function renderHerbs(state) {
             </tr>
           </thead>
           <tbody>
-            ${list.length === 0 ? `<tr><td colspan="8" style="text-align:center; color:var(--gray-400);">ไม่มีข้อมูลยาสมุนไพรในระบบ</td></tr>` : 
-              list.map(h => `
-                <tr>
-                  <td>HERB-${String(h.id).padStart(4, '0')}</td>
-                  <td><strong>${h.name}</strong></td>
-                  <td style="text-align:right; color:var(--gray-500);">
-                    ${h.isConsignment ? `<span class="badge warning" style="font-size:10px; padding:2px 4px;">ฝากขาย</span> ฿0` : `฿${h.cost}`}
-                  </td>
-                  <td style="text-align:right; font-weight:600; color:var(--primary);">฿${h.price}</td>
-                  <td style="text-align:center; font-weight:700; color:${h.stock < 15 ? 'var(--danger)' : 'var(--dark)'}">${h.stock}</td>
-                  <td>${h.unit || 'ขวด'}</td>
-                  <td><span style="color:${h.expiry && new Date(h.expiry) < new Date() ? 'var(--danger)' : 'var(--dark)'}">${h.expiry ? new Date(h.expiry).toLocaleDateString('th-TH') : '-'}</span></td>
-                  <td style="text-align:center; white-space:nowrap;">
-                    <div style="display:flex; gap:6px; justify-content:center;">
-                      <button class="btn btn-secondary btn-sm btn-edit-herb" data-id="${h.id}">แก้ไข</button>
-                      <button class="btn btn-danger btn-sm btn-delete-herb" data-id="${h.id}">ลบ</button>
-                    </div>
-                  </td>
-                </tr>
-              `).join('')
+            ${internalHerbs.length === 0 ? `<tr><td colspan="8" style="text-align:center; color:var(--gray-400);">ไม่มีข้อมูลยาสมุนไพรรักษาโรคในระบบ</td></tr>` : 
+              internalHerbs.map(renderHerbRow).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 2: ยาใช้ภายนอก -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--success);">🧴 ยาใช้ภายนอก (${externalHerbs.length} รายการ)</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>รหัสยา</th>
+              <th>ชื่อยาสมุนไพร / ยาเดี่ยว</th>
+              <th style="text-align:right;">ราคาทุน (฿)</th>
+              <th style="text-align:right;">ราคาขาย (฿)</th>
+              <th style="text-align:center;">จำนวนคงเหลือ</th>
+              <th>หน่วยนับ</th>
+              <th>วันหมดอายุยา</th>
+              <th style="text-align:center;">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${externalHerbs.length === 0 ? `<tr><td colspan="8" style="text-align:center; color:var(--gray-400);">ไม่มีข้อมูลยาใช้ภายนอกในระบบ</td></tr>` : 
+              externalHerbs.map(renderHerbRow).join('')
             }
           </tbody>
         </table>
@@ -4883,14 +4916,21 @@ export function renderHerbs(state) {
               <label for="h-name">ชื่อยาสมุนไพร / ยาตำรับ *</label>
               <input type="text" class="form-control" id="h-name" required placeholder="เช่น ฟ้าทะลายโจรชนิดแคปซูล">
             </div>
+            <div class="form-group">
+              <label for="h-subcategory">ประเภทประเภทยาสมุนไพร *</label>
+              <select id="h-subcategory" class="form-control" required>
+                <option value="ยาสมุนไพรรักษาโรค">ยาสมุนไพรรักษาโรค</option>
+                <option value="ยาใช้ภายนอก">ยาใช้ภายนอก</option>
+              </select>
+            </div>
             <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
               <div class="form-group">
                 <label for="h-cost">ราคาทุนของสินค้า (฿) *</label>
-                <input type="number" class="form-control" id="h-cost" required min="0" placeholder="0">
+                <input type="number" step="any" class="form-control" id="h-cost" required min="0" placeholder="0">
               </div>
               <div class="form-group">
                 <label for="h-price">ราคาตั้งขายจริง (฿) *</label>
-                <input type="number" class="form-control" id="h-price" required min="0" placeholder="0">
+                <input type="number" step="any" class="form-control" id="h-price" required min="0" placeholder="0">
               </div>
             </div>
             <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-top:8px; margin-bottom:12px;">
@@ -4904,7 +4944,7 @@ export function renderHerbs(state) {
               </div>
               <div class="form-group" style="margin-bottom:0;">
                 <label for="h-consignment-cost">ต้นทุนจ่ายคืนผู้ฝากเมื่อขายได้ต่อหน่วย (฿)</label>
-                <input type="number" class="form-control" id="h-consignment-cost" min="0" value="0">
+                <input type="number" step="any" class="form-control" id="h-consignment-cost" min="0" value="0">
               </div>
             </div>
             <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
@@ -4914,7 +4954,18 @@ export function renderHerbs(state) {
               </div>
               <div class="form-group">
                 <label for="h-unit">หน่วยนับ</label>
-                <input type="text" class="form-control" id="h-unit" required value="กระปุก">
+                <input type="text" class="form-control" id="h-unit" list="dl-units" required value="กระปุก">
+                <datalist id="dl-units">
+                  <option value="เม็ด"></option>
+                  <option value="แคปซูล"></option>
+                  <option value="แผง"></option>
+                  <option value="ขวด"></option>
+                  <option value="กระปุก"></option>
+                  <option value="ห่อ"></option>
+                  <option value="ซอง"></option>
+                  <option value="หลอด"></option>
+                  <option value="ถุง"></option>
+                </datalist>
               </div>
             </div>
             <div class="form-group">
@@ -4961,6 +5012,7 @@ export function setupHerbsEvents(state, navigate) {
     document.getElementById('h-stock').value = item.stock;
     document.getElementById('h-unit').value = item.unit;
     document.getElementById('h-expiry').value = item.expiry || '';
+    document.getElementById('h-subcategory').value = item.subCategory || 'ยาสมุนไพรรักษาโรค';
     
     if (item.isConsignment) {
       consignmentCheck.checked = true;
@@ -4988,6 +5040,7 @@ export function setupHerbsEvents(state, navigate) {
   document.getElementById('btn-herb-add')?.addEventListener('click', () => {
     document.getElementById('form-herb').reset();
     document.getElementById('h-id').value = '';
+    document.getElementById('h-subcategory').value = 'ยาสมุนไพรรักษาโรค';
     consignmentCheck.checked = false;
     updateConsignmentUI(false);
     modal.style.display = 'flex';
@@ -5016,6 +5069,7 @@ export function setupHerbsEvents(state, navigate) {
       cost: cost,
       price: price,
       stock: stock,
+      subCategory: document.getElementById('h-subcategory').value,
       unit: document.getElementById('h-unit').value,
       expiry: document.getElementById('h-expiry').value,
       isConsignment: isCons,
@@ -5077,6 +5131,28 @@ export function setupHerbsEvents(state, navigate) {
 // -------------------------------------------------------------
 export function renderProducts(state) {
   const list = state.inventory.filter(i => i.type === 'product');
+  const clinicProducts = list.filter(p => (p.subCategory || 'ผลิตภัณฑ์ในคลินิก') === 'ผลิตภัณฑ์ในคลินิก');
+  const consignmentProducts = list.filter(p => p.subCategory === 'ผลิตภัณฑ์ฝากขาย');
+
+  const renderProductRow = (p) => `
+    <tr>
+      <td>PROD-${String(p.id).padStart(4, '0')}</td>
+      <td><strong>${p.name}</strong></td>
+      <td style="text-align:right; color:var(--gray-500);">
+        ${p.isConsignment ? `<span class="badge warning" style="font-size:10px; padding:2px 4px;">ฝากขาย</span> ฿0` : `฿${p.cost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}`}
+      </td>
+      <td style="text-align:right; font-weight:600; color:var(--primary);">฿${p.price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
+      <td style="text-align:center; font-weight:700; color:${p.stock < 5 ? 'var(--danger)' : 'var(--dark)'}">${p.stock}</td>
+      <td>${p.unit || 'ชิ้น'}</td>
+      <td style="text-align:center; white-space:nowrap;">
+        <div style="display:flex; gap:6px; justify-content:center;">
+          <button class="btn btn-secondary btn-sm btn-edit-prod" data-id="${p.id}">แก้ไข</button>
+          <button class="btn btn-danger btn-sm btn-delete-prod" data-id="${p.id}">ลบ</button>
+        </div>
+      </td>
+    </tr>
+  `;
+
   return `
     ${renderSeedDataBanner(state)}
     <div class="page-header">
@@ -5090,7 +5166,9 @@ export function renderProducts(state) {
       </button>
     </div>
 
-    <div class="card">
+    <!-- Section 1: ผลิตภัณฑ์ในคลินิก -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--primary);">🏥 ผลิตภัณฑ์ในคลินิก (${clinicProducts.length} รายการ)</h3>
       <div class="table-container">
         <table>
           <thead>
@@ -5105,25 +5183,33 @@ export function renderProducts(state) {
             </tr>
           </thead>
           <tbody>
-            ${list.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--gray-400);">ไม่มีข้อมูลผลิตภัณฑ์จำหน่ายในระบบ</td></tr>` : 
-              list.map(p => `
-                <tr>
-                  <td>PROD-${String(p.id).padStart(4, '0')}</td>
-                  <td><strong>${p.name}</strong></td>
-                  <td style="text-align:right; color:var(--gray-500);">
-                    ${p.isConsignment ? `<span class="badge warning" style="font-size:10px; padding:2px 4px;">ฝากขาย</span> ฿0` : `฿${p.cost}`}
-                  </td>
-                  <td style="text-align:right; font-weight:600; color:var(--primary);">฿${p.price}</td>
-                  <td style="text-align:center; font-weight:700; color:${p.stock < 15 ? 'var(--danger)' : 'var(--dark)'}">${p.stock}</td>
-                  <td>${p.unit || 'ชิ้น'}</td>
-                  <td style="text-align:center; white-space:nowrap;">
-                    <div style="display:flex; gap:6px; justify-content:center;">
-                      <button class="btn btn-secondary btn-sm btn-edit-prod" data-id="${p.id}">แก้ไข</button>
-                      <button class="btn btn-danger btn-sm btn-delete-prod" data-id="${p.id}">ลบ</button>
-                    </div>
-                  </td>
-                </tr>
-              `).join('')
+            ${clinicProducts.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--gray-400);">ไม่มีข้อมูลผลิตภัณฑ์ในคลินิกในระบบ</td></tr>` : 
+              clinicProducts.map(renderProductRow).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 2: ผลิตภัณฑ์ฝากขาย -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--warning);">🤝 ผลิตภัณฑ์ฝากขาย (${consignmentProducts.length} รายการ)</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>รหัสสินค้า</th>
+              <th>ชื่อผลิตภัณฑ์เพื่อสุขภาพ</th>
+              <th style="text-align:right;">ราคาทุน (฿)</th>
+              <th style="text-align:right;">ราคาขาย (฿)</th>
+              <th style="text-align:center;">จำนวนคงเหลือ</th>
+              <th>หน่วยนับ</th>
+              <th style="text-align:center;">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${consignmentProducts.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--gray-400);">ไม่มีข้อมูลผลิตภัณฑ์ฝากขายในระบบ</td></tr>` : 
+              consignmentProducts.map(renderProductRow).join('')
             }
           </tbody>
         </table>
@@ -5144,14 +5230,21 @@ export function renderProducts(state) {
               <label for="p-name-field">ชื่อผลิตภัณฑ์เพื่อสุขภาพ *</label>
               <input type="text" class="form-control" id="p-name-field" required placeholder="เช่น ครีมมะขามพอกผิวออร์แกนิก">
             </div>
+            <div class="form-group">
+              <label for="p-subcategory">ประเภทผลิตภัณฑ์ *</label>
+              <select id="p-subcategory" class="form-control" required>
+                <option value="ผลิตภัณฑ์ในคลินิก">ผลิตภัณฑ์ในคลินิก</option>
+                <option value="ผลิตภัณฑ์ฝากขาย">ผลิตภัณฑ์ฝากขาย</option>
+              </select>
+            </div>
             <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
               <div class="form-group">
                 <label for="p-cost-field">ราคาทุน (฿) *</label>
-                <input type="number" class="form-control" id="p-cost-field" required min="0" placeholder="0">
+                <input type="number" step="any" class="form-control" id="p-cost-field" required min="0" placeholder="0">
               </div>
               <div class="form-group">
                 <label for="p-price-field">ราคาขายหน้าร้าน (฿) *</label>
-                <input type="number" class="form-control" id="p-price-field" required min="0" placeholder="0">
+                <input type="number" step="any" class="form-control" id="p-price-field" required min="0" placeholder="0">
               </div>
             </div>
             <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-top:8px; margin-bottom:12px;">
@@ -5165,7 +5258,7 @@ export function renderProducts(state) {
               </div>
               <div class="form-group" style="margin-bottom:0;">
                 <label for="p-consignment-cost">ต้นทุนจ่ายคืนผู้ฝากเมื่อขายได้ต่อหน่วย (฿)</label>
-                <input type="number" class="form-control" id="p-consignment-cost" min="0" value="0">
+                <input type="number" step="any" class="form-control" id="p-consignment-cost" min="0" value="0">
               </div>
             </div>
             <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
@@ -5175,7 +5268,20 @@ export function renderProducts(state) {
               </div>
               <div class="form-group">
                 <label for="p-unit-field">หน่วยนับ</label>
-                <input type="text" class="form-control" id="p-unit-field" required value="ชิ้น">
+                <input type="text" class="form-control" id="p-unit-field" list="dl-prod-units" required value="ชิ้น">
+                <datalist id="dl-prod-units">
+                  <option value="เม็ด"></option>
+                  <option value="แคปซูล"></option>
+                  <option value="แผง"></option>
+                  <option value="ขวด"></option>
+                  <option value="กระปุก"></option>
+                  <option value="ห่อ"></option>
+                  <option value="ซอง"></option>
+                  <option value="หลอด"></option>
+                  <option value="ถุง"></option>
+                  <option value="ชิ้น"></option>
+                  <option value="กล่อง"></option>
+                </datalist>
               </div>
             </div>
           </form>
@@ -5217,6 +5323,7 @@ export function setupProductsEvents(state, navigate) {
     document.getElementById('p-price-field').value = item.price;
     document.getElementById('p-stock-field').value = item.stock;
     document.getElementById('p-unit-field').value = item.unit;
+    document.getElementById('p-subcategory').value = item.subCategory || 'ผลิตภัณฑ์ในคลินิก';
     
     if (item.isConsignment) {
       consignmentCheck.checked = true;
@@ -5244,6 +5351,7 @@ export function setupProductsEvents(state, navigate) {
   document.getElementById('btn-prod-add')?.addEventListener('click', () => {
     document.getElementById('form-prod').reset();
     document.getElementById('p-id-field').value = '';
+    document.getElementById('p-subcategory').value = 'ผลิตภัณฑ์ในคลินิก';
     consignmentCheck.checked = false;
     updateConsignmentUI(false);
     modal.style.display = 'flex';
@@ -5272,6 +5380,7 @@ export function setupProductsEvents(state, navigate) {
       cost: cost,
       price: price,
       stock: stock,
+      subCategory: document.getElementById('p-subcategory').value,
       unit: document.getElementById('p-unit-field').value,
       isConsignment: isCons,
       consignmentProvider: isCons ? document.getElementById('p-consignment-provider').value : '',
@@ -5335,8 +5444,31 @@ export function renderInventory(state) {
   const products = state.inventory.filter(i => i.type === 'product');
   
   const totalStockVal = [...medicines, ...products].reduce((sum, item) => sum + (item.cost * item.stock), 0);
-  const lowStockCount = [...medicines, ...products].filter(i => i.stock < 15).length;
+  const lowStockCount = [...medicines, ...products].filter(i => i.stock < 5).length;
   const expiredCount = medicines.filter(h => h.expiry && new Date(h.expiry) < new Date()).length;
+
+  const internalHerbs = medicines.filter(h => (h.subCategory || 'ยาสมุนไพรรักษาโรค') === 'ยาสมุนไพรรักษาโรค');
+  const externalHerbs = medicines.filter(h => h.subCategory === 'ยาใช้ภายนอก');
+
+  const renderInventoryRow = (item) => `
+    <tr>
+      <td>INV-${String(item.id).padStart(4, '0')}</td>
+      <td>
+        <a href="#" class="inv-item-link" data-id="${item.id}" data-type="${item.type}" style="color:var(--primary); text-decoration:underline; font-weight:600;">
+          ${item.name}
+        </a>
+      </td>
+      <td><span class="badge ${item.type === 'medicine' ? 'success' : 'info'}">${item.subCategory || (item.type === 'medicine' ? 'ยาสมุนไพรรักษาโรค' : 'ผลิตภัณฑ์')}</span></td>
+      <td style="font-weight:700;">${item.stock} ${item.unit || 'ชิ้น'}</td>
+      <td>฿${item.cost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
+      <td style="color:var(--primary); font-weight:600;">฿${item.price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
+      <td>
+        ${item.stock < 3 ? `<span class="badge danger">วิกฤต (< 3)</span>` : (item.stock < 5 ? `<span class="badge warning">เตือน (< 5)</span>` : '')}
+        ${item.expiry && new Date(item.expiry) < new Date() ? `<span class="badge danger">หมดอายุแล้ว</span>` : ''}
+        ${item.stock >= 5 && !(item.expiry && new Date(item.expiry) < new Date()) ? `<span class="badge success">ปกติ</span>` : ''}
+      </td>
+    </tr>
+  `;
 
   return `
     ${renderSeedDataBanner(state)}
@@ -5364,7 +5496,7 @@ export function renderInventory(state) {
         </div>
         <div class="stat-info">
           <span class="stat-label">มูลค่าทุนคลังสินค้ารวม</span>
-          <span class="stat-value">฿${totalStockVal.toLocaleString()}</span>
+          <span class="stat-value">฿${totalStockVal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
         </div>
       </div>
       <div class="card stat-card">
@@ -5372,7 +5504,7 @@ export function renderInventory(state) {
           <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>
         </div>
         <div class="stat-info">
-          <span class="stat-label">สินค้าใกล้หมดคลัง</span>
+          <span class="stat-label">สินค้าใกล้หมด (< 5)</span>
           <span class="stat-value" style="color:var(--danger)">${lowStockCount} รายการ</span>
         </div>
       </div>
@@ -5387,9 +5519,9 @@ export function renderInventory(state) {
       </div>
     </div>
 
-    <!-- Quick List Table -->
-    <div class="card">
-      <h3 style="font-weight:700; margin-bottom:12px;">รายการสินค้ายาสมุนไพรและผลิตภัณฑ์ทั้งหมด</h3>
+    <!-- Quick List Table: ยาสมุนไพรรักษาโรค -->
+    <div class="card" style="margin-bottom:24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--primary);">💊 หมวดหมู่: ยาสมุนไพรรักษาโรค (${internalHerbs.length} รายการ)</h3>
       <div class="table-container">
         <table>
           <thead>
@@ -5404,25 +5536,59 @@ export function renderInventory(state) {
             </tr>
           </thead>
           <tbody>
-            ${[...medicines, ...products].map(item => `
-              <tr>
-                <td>INV-${String(item.id).padStart(4, '0')}</td>
-                <td>
-                  <a href="#" class="inv-item-link" data-id="${item.id}" data-type="${item.type}" style="color:var(--primary); text-decoration:underline; font-weight:600;">
-                    ${item.name}
-                  </a>
-                </td>
-                <td><span class="badge ${item.type === 'medicine' ? 'success' : 'info'}">${item.type === 'medicine' ? 'ยาสมุนไพร' : 'ผลิตภัณฑ์'}</span></td>
-                <td style="font-weight:700;">${item.stock} ${item.unit || 'ชิ้น'}</td>
-                <td>฿${item.cost.toLocaleString()}</td>
-                <td style="color:var(--primary); font-weight:600;">฿${item.price.toLocaleString()}</td>
-                <td>
-                  ${item.stock < 15 ? `<span class="badge danger">สต๊อกใกล้หมด</span>` : ''}
-                  ${item.expiry && new Date(item.expiry) < new Date() ? `<span class="badge danger">หมดอายุแล้ว</span>` : ''}
-                  ${item.stock >= 15 && !(item.expiry && new Date(item.expiry) < new Date()) ? `<span class="badge success">ปกติ</span>` : ''}
-                </td>
-              </tr>
-            `).join('')}
+            ${internalHerbs.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--gray-400);">ไม่มีรายการยาสมุนไพรรักษาโรค</td></tr>` : 
+              internalHerbs.map(renderInventoryRow).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Quick List Table: ยาใช้ภายนอก -->
+    <div class="card" style="margin-bottom:24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--success);">🧴 หมวดหมู่: ยาใช้ภายนอก (${externalHerbs.length} รายการ)</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>รหัสคลัง</th>
+              <th>ชื่อยา/ผลิตภัณฑ์</th>
+              <th>ประเภท</th>
+              <th>คงเหลือ</th>
+              <th>ราคาทุนเฉลี่ย</th>
+              <th>ราคาขายจริง</th>
+              <th>สถานะแจ้งเตือน</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${externalHerbs.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--gray-400);">ไม่มีรายการยาใช้ภายนอก</td></tr>` : 
+              externalHerbs.map(renderInventoryRow).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Quick List Table: ผลิตภัณฑ์สุขภาพ -->
+    <div class="card">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--info);">🛍️ หมวดหมู่: ผลิตภัณฑ์สุขภาพและเวชสำอาง (${products.length} รายการ)</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>รหัสคลัง</th>
+              <th>ชื่อยา/ผลิตภัณฑ์</th>
+              <th>ประเภท</th>
+              <th>คงเหลือ</th>
+              <th>ราคาทุนเฉลี่ย</th>
+              <th>ราคาขายจริง</th>
+              <th>สถานะแจ้งเตือน</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--gray-400);">ไม่มีรายการผลิตภัณฑ์สุขภาพ</td></tr>` : 
+              products.map(renderInventoryRow).join('')
+            }
           </tbody>
         </table>
       </div>
@@ -6077,6 +6243,24 @@ export function setupEmployeesEvents(state, navigate) {
 // -------------------------------------------------------------
 export function renderClinicServices(state) {
   const list = state.inventory.filter(i => i.type === 'service');
+  const treatments = list.filter(s => (s.serviceCategory || 'การรักษา') === 'การรักษา');
+  const relaxations = list.filter(s => s.serviceCategory === 'การผ่อนคลาย');
+  const beauties = list.filter(s => s.serviceCategory === 'ความงาม');
+
+  const renderServiceRow = (s) => `
+    <tr>
+      <td>SVC-${String(s.id).padStart(4, '0')}</td>
+      <td><strong>${s.name}</strong></td>
+      <td><span class="badge primary">${s.serviceCategory || 'การรักษา'}</span></td>
+      <td style="text-align:right; font-weight:700; color:var(--primary);">฿${s.price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
+      <td style="text-align:right; color:var(--gray-500);">฿${s.cost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
+      <td style="text-align:center; white-space:nowrap;">
+        <button class="btn btn-secondary btn-sm btn-edit-svc-def" data-id="${s.id}">แก้ไข</button>
+        <button class="btn btn-danger btn-sm btn-del-svc-def" data-id="${s.id}">&times;</button>
+      </td>
+    </tr>
+  `;
+
   return `
     ${renderSeedDataBanner(state)}
     <div class="page-header">
@@ -6090,7 +6274,9 @@ export function renderClinicServices(state) {
       </button>
     </div>
 
-    <div class="card">
+    <!-- Section 1: การรักษา -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--primary);">🩺 หัตถการเพื่อการรักษา (${treatments.length} บริการ)</h3>
       <div class="table-container">
         <table>
           <thead>
@@ -6104,19 +6290,57 @@ export function renderClinicServices(state) {
             </tr>
           </thead>
           <tbody>
-            ${list.map(s => `
-              <tr>
-                <td>SVC-${String(s.id).padStart(4, '0')}</td>
-                <td><strong>${s.name}</strong></td>
-                <td><span class="badge primary">${s.serviceCategory || 'การรักษา'}</span></td>
-                <td style="text-align:right; font-weight:700; color:var(--primary);">฿${s.price.toLocaleString()}</td>
-                <td style="text-align:right; color:var(--gray-500);">฿${s.cost.toLocaleString()}</td>
-                <td style="text-align:center; white-space:nowrap;">
-                  <button class="btn btn-secondary btn-sm btn-edit-svc-def" data-id="${s.id}">แก้ไข</button>
-                  <button class="btn btn-danger btn-sm btn-del-svc-def" data-id="${s.id}">&times;</button>
-                </td>
-              </tr>
-            `).join('')}
+            ${treatments.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:var(--gray-400);">ไม่มีรายการหัตถการเพื่อการรักษา</td></tr>` : 
+              treatments.map(renderServiceRow).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 2: การผ่อนคลาย -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--success);">🌿 บริการเพื่อการผ่อนคลาย / สปา (${relaxations.length} บริการ)</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>รหัสบริการ</th>
+              <th>ชื่อบริการ / หัตถการ</th>
+              <th>ประเภทหมวดหมู่</th>
+              <th style="text-align:right;">ราคาขายมาตรฐาน</th>
+              <th style="text-align:right;">ต้นทุนโดยประมาณ</th>
+              <th style="text-align:center;">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${relaxations.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:var(--gray-400);">ไม่มีรายการบริการเพื่อการผ่อนคลาย / สปา</td></tr>` : 
+              relaxations.map(renderServiceRow).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 3: ความงาม -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-weight:700; margin-bottom:12px; color:var(--info);">✨ บริการเพื่อความงาม (${beauties.length} บริการ)</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>รหัสบริการ</th>
+              <th>ชื่อบริการ / หัตถการ</th>
+              <th>ประเภทหมวดหมู่</th>
+              <th style="text-align:right;">ราคาขายมาตรฐาน</th>
+              <th style="text-align:right;">ต้นทุนโดยประมาณ</th>
+              <th style="text-align:center;">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${beauties.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:var(--gray-400);">ไม่มีรายการบริการเพื่อความงาม</td></tr>` : 
+              beauties.map(renderServiceRow).join('')
+            }
           </tbody>
         </table>
       </div>
@@ -6147,11 +6371,11 @@ export function renderClinicServices(state) {
             <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
               <div class="form-group">
                 <label for="sd-price">ราคามาตรฐานเก็บเงินลูกค้า (฿) *</label>
-                <input type="number" class="form-control" id="sd-price" required min="0" placeholder="0">
+                <input type="number" step="any" class="form-control" id="sd-price" required min="0" placeholder="0">
               </div>
               <div class="form-group">
                 <label for="sd-cost">ต้นทุนโดยประมาณ/ค่ามือต่อครั้ง (฿) *</label>
-                <input type="number" class="form-control" id="sd-cost" required min="0" placeholder="0">
+                <input type="number" step="any" class="form-control" id="sd-cost" required min="0" placeholder="0">
               </div>
             </div>
           </form>
@@ -6298,8 +6522,8 @@ export function renderPricePackages(state) {
                 <td>PKG-${String(p.id).padStart(4, '0')}</td>
                 <td><strong>${p.name}</strong></td>
                 <td style="text-align:center;">${p.sessions !== undefined ? p.sessions : (p.name.includes('5 ครั้ง') ? '5' : (p.name.includes('3 ครั้ง') ? '3' : '10'))} ครั้ง</td>
-                <td style="text-align:right; font-weight:700; color:var(--primary);">฿${p.price.toLocaleString()}</td>
-                <td style="text-align:right; color:var(--gray-500);">฿${p.cost.toLocaleString()}</td>
+                <td style="text-align:right; font-weight:700; color:var(--primary);">฿${p.price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
+                <td style="text-align:right; color:var(--gray-500);">฿${p.cost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
                 <td style="text-align:center; white-space:nowrap;">
                   <button class="btn btn-secondary btn-sm btn-edit-pkg-def" data-id="${p.id}">แก้ไข</button>
                   <button class="btn btn-danger btn-sm btn-del-pkg-def" data-id="${p.id}">&times;</button>
@@ -6332,11 +6556,11 @@ export function renderPricePackages(state) {
             <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
               <div class="form-group">
                 <label for="pd-price">ราคาขายยกคอร์สพิเศษ (฿) *</label>
-                <input type="number" class="form-control" id="pd-price" required min="0" placeholder="0">
+                <input type="number" step="any" class="form-control" id="pd-price" required min="0" placeholder="0">
               </div>
               <div class="form-group">
                 <label for="pd-cost">ต้นทุนสะสม/ค่ามือผู้ให้บริการรวม (฿) *</label>
-                <input type="number" class="form-control" id="pd-cost" required min="0" placeholder="0">
+                <input type="number" step="any" class="form-control" id="pd-cost" required min="0" placeholder="0">
               </div>
             </div>
           </form>

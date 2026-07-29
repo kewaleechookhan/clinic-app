@@ -396,11 +396,11 @@ export class ClinicDB {
     const items = await this.getInventory();
     if (items.length === 0) {
       const defaultItems = [
-        { name: 'ยาหม่องสมุนไพรสูตรเสลดพังพอน', type: 'medicine', price: 80, cost: 35, stock: 120, unit: 'ขวด', expiry: '2027-12-31', isSeedData: true },
-        { name: 'ยาแคปซูลฟ้าทะลายโจร', type: 'medicine', price: 150, cost: 70, stock: 8, unit: 'กระปุก', expiry: '2026-10-15', isSeedData: true }, 
-        { name: 'ขมิ้นชันชนิดแคปซูล', type: 'medicine', price: 120, cost: 50, stock: 100, unit: 'กระปุก', expiry: '2027-04-20', isSeedData: true },
-        { name: 'น้ำมันไพลนวดบำบัด', type: 'product', price: 250, cost: 110, stock: 45, unit: 'ขวด', isSeedData: true },
-        { name: 'ชาสมุนไพรเกสรทั้งห้า', type: 'product', price: 180, cost: 90, stock: 6, unit: 'กล่อง', isSeedData: true }, 
+        { name: 'ยาหม่องสมุนไพรสูตรเสลดพังพอน', type: 'medicine', price: 80, cost: 35, stock: 120, unit: 'ขวด', expiry: '2027-12-31', subCategory: 'ยาใช้ภายนอก', isSeedData: true },
+        { name: 'ยาแคปซูลฟ้าทะลายโจร', type: 'medicine', price: 150, cost: 70, stock: 8, unit: 'กระปุก', expiry: '2026-10-15', subCategory: 'ยาสมุนไพรรักษาโรค', isSeedData: true }, 
+        { name: 'ขมิ้นชันชนิดแคปซูล', type: 'medicine', price: 120, cost: 50, stock: 100, unit: 'กระปุก', expiry: '2027-04-20', subCategory: 'ยาสมุนไพรรักษาโรค', isSeedData: true },
+        { name: 'น้ำมันไพลนวดบำบัด', type: 'product', price: 250, cost: 110, stock: 45, unit: 'ขวด', subCategory: 'ผลิตภัณฑ์ในคลินิก', isSeedData: true },
+        { name: 'ชาสมุนไพรเกสรทั้งห้า', type: 'product', price: 180, cost: 90, stock: 6, unit: 'กล่อง', subCategory: 'ผลิตภัณฑ์ในคลินิก', isSeedData: true }, 
         { name: 'หัตถการนวดประคบสมุนไพร', type: 'service', price: 600, cost: 150, stock: 9999, unit: 'ครั้ง', isSeedData: true },
         { name: 'บริการสปานวดหน้าสมุนไพรสด', type: 'service', price: 890, cost: 200, stock: 9999, unit: 'ครั้ง', isSeedData: true },
         { name: 'คอร์สนวดรักษาออฟฟิศซินโดรม (5 ครั้ง)', type: 'package', price: 2500, cost: 750, stock: 9999, unit: 'คอร์ส', isSeedData: true },
@@ -411,7 +411,6 @@ export class ClinicDB {
       }
     }
 
-    // 2. Patients Seed
     const pts = await this.getPatients();
     if (pts.length === 0) {
       const defaultPatients = [
