@@ -274,7 +274,10 @@ export class ClinicDB {
   }
 
   // --- Patients API ---
-  static addPatient(patient) {
+  static async addPatient(patient) {
+    const patients = await this.getPatients();
+    const maxId = patients.reduce((max, p) => p.id > max ? p.id : max, 0);
+    patient.id = maxId + 1;
     return this.addStoreData('patients', patient);
   }
 

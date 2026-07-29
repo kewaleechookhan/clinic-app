@@ -1,6 +1,33 @@
 // pages.js - Refactored MVP Page Renderers and Interaction Setup for iPad (Offline-first, Safe Keying)
 import { ClinicDB } from './db.js';
 
+// Helper to format date to Thai Buddhist Era (พ.ศ.)
+export function formatDateBE(dateVal, format = 'short') {
+  if (!dateVal) return '-';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return dateVal;
+  const day = d.getDate();
+  const yearBE = d.getFullYear() + 543;
+  
+  if (format === 'short-month') {
+    const monthShortNames = [
+      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+    ];
+    return `${day} ${monthShortNames[d.getMonth()]} ${yearBE}`;
+  }
+  if (format === 'full') {
+    const monthFullNames = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    return `${day} ${monthFullNames[d.getMonth()]} ${yearBE}`;
+  }
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${dd}/${mm}/${yearBE}`;
+}
+
 // Helper for element calculation based on birth month
 export function getElementByMonth(monthNum) {
   const m = Number(monthNum);
@@ -350,7 +377,7 @@ export function renderCustomers(state) {
                 return `
                   <tr data-name="${p.name.toLowerCase()}" data-phone="${p.phone}" data-elem="${elem.name}">
                     <td>HN-${String(p.id).padStart(4, '0')}</td>
-                    <td><strong>${p.name}</strong></td>
+                    <td><strong>${p.name}</strong> ${p.nickname ? `<span style="color:var(--gray-500); font-weight:normal;">(${p.nickname})</span>` : ''}</td>
                     <td>${p.phone}</td>
                     <td>${p.gender || '-'}</td>
                     <td><span class="elem-chip ${elem.css}">${elem.name}</span></td>
@@ -382,9 +409,15 @@ export function renderCustomers(state) {
         </div>
         <div class="modal-body">
           <form id="form-cust">
-            <div class="form-group">
-              <label for="c-name">ชื่อ - นามสกุล *</label>
-              <input type="text" class="form-control" id="c-name" required placeholder="ชื่อ-นามสกุล">
+            <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
+              <div class="form-group">
+                <label for="c-name">ชื่อ - นามสกุล *</label>
+                <input type="text" class="form-control" id="c-name" required placeholder="ชื่อ-นามสกุล">
+              </div>
+              <div class="form-group">
+                <label for="c-nickname">ชื่อเล่น</label>
+                <input type="text" class="form-control" id="c-nickname" placeholder="ชื่อเล่น">
+              </div>
             </div>
             <div class="form-group">
               <label for="c-phone">เบอร์โทรศัพท์ * (บังคับกรอกสำหรับความปลอดภัยในการติดต่อ)</label>
@@ -458,6 +491,7 @@ export function setupCustomersEvents(state, navigate) {
       modal.querySelector('h3').textContent = `แก้ไขประวัติลูกค้า HN-${String(id).padStart(4, '0')}`;
       
       document.getElementById('c-name').value = patient.name;
+      document.getElementById('c-nickname').value = patient.nickname || '';
       document.getElementById('c-phone').value = patient.phone;
       document.getElementById('c-birthdate').value = patient.birthdate || '';
       document.getElementById('c-gender').value = patient.gender || 'หญิง';
@@ -488,6 +522,7 @@ export function setupCustomersEvents(state, navigate) {
 
     const patient = {
       name: document.getElementById('c-name').value,
+      nickname: document.getElementById('c-nickname').value.trim(),
       phone: phone,
       birthdate: birthdate,
       gender: document.getElementById('c-gender').value,
@@ -606,7 +641,7 @@ export function renderAppointments(state) {
             ${list.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:var(--gray-400);">ไม่มีรายการนัดหมายสุขภาพล่วงหน้าในระบบ</td></tr>` : 
               list.map(a => `
                 <tr>
-                  <td>${new Date(a.date).toLocaleDateString('th-TH')}</td>
+                  <td>${formatDateBE(a.date)}</td>
                   <td><strong>${a.time} น.</strong></td>
                   <td><strong>${a.patientName} (HN-${String(a.patientId).padStart(4, '0')})</strong></td>
                   <td>
@@ -789,7 +824,7 @@ export function setupAppointmentsEvents(state, navigate) {
       alert(`รายละเอียดข้อมูลการนัดหมาย HN-${String(appt.patientId).padStart(4, '0')}:
 ---------------------------------------
 ชื่อคนไข้: ${appt.patientName}
-วันที่นัด: ${new Date(appt.date).toLocaleDateString('th-TH')}
+วันที่นัด: ${formatDateBE(appt.date)}
 เวลานัด: ${appt.time} น.
 อาการ/ความต้องการ: ${appt.complaint || 'ไม่มี'}
 บริการหลักที่จอง: ${appt.notes || 'ไม่มี'}
@@ -856,6 +891,13 @@ function renderQueueOriginal(state) {
   const todayQueues = state.queues.filter(q => q.date === todayStr);
   const filterByStatus = (status) => todayQueues.filter(q => q.status === status);
 
+  const renderQueueCardActions = (q) => `
+    <div style="position:absolute; top:8px; right:8px; display:flex; gap:6px; z-index:10;">
+      <button class="btn-queue-edit" data-id="${q.id}" style="border:none; background:none; cursor:pointer; padding:2px; font-size:12px; line-height:1;" title="แก้ไขข้อมูลคิว">✏️</button>
+      <button class="btn-queue-delete" data-id="${q.id}" style="border:none; background:none; cursor:pointer; padding:2px; font-size:12px; line-height:1;" title="ลบ/ยกเลิกคิว">🗑️</button>
+    </div>
+  `;
+
   return `
     ${renderSeedDataBanner(state)}
 
@@ -875,7 +917,8 @@ function renderQueueOriginal(state) {
         </div>
         ${filterByStatus('waiting_intake').length === 0 ? `<div style="text-align:center; padding:24px 10px; border:2px dashed var(--gray-300); border-radius:var(--radius-md); color:var(--gray-400); font-size:12px;">ไม่มีคิว</div>` : 
           filterByStatus('waiting_intake').map(q => `
-            <div class="kanban-card">
+            <div class="kanban-card" style="position:relative; padding-right:42px;">
+              ${renderQueueCardActions(q)}
               <span class="kanban-card-title">${q.patientName}</span>
               <span style="font-size:12px; color:var(--gray-500);">HN-${String(q.patientId).padStart(4, '0')} | คิว: ${q.time} น.</span>
               <button class="btn btn-primary btn-sm btn-intake-act" data-id="${q.id}" style="width:100%; margin-top:8px;">บันทึกอาการแรกรับ</button>
@@ -892,7 +935,8 @@ function renderQueueOriginal(state) {
         </div>
         ${filterByStatus('consulting').length === 0 ? `<div style="text-align:center; padding:24px 10px; border:2px dashed var(--gray-300); border-radius:var(--radius-md); color:var(--gray-400); font-size:12px;">ไม่มีคิว</div>` : 
           filterByStatus('consulting').map(q => `
-            <div class="kanban-card" style="border-left-color: var(--primary);">
+            <div class="kanban-card" style="border-left-color: var(--primary); position:relative; padding-right:42px;">
+              ${renderQueueCardActions(q)}
               <span class="kanban-card-title">${q.patientName}</span>
               <span style="font-size:12px; color:var(--gray-500);">HN-${String(q.patientId).padStart(4, '0')} | อาการ: ${q.symptoms || '-'}</span>
               <button class="btn btn-primary btn-sm btn-consult-act" data-id="${q.id}" style="width:100%; margin-top:8px;">บันทึกตรวจโรค</button>
@@ -909,7 +953,8 @@ function renderQueueOriginal(state) {
         </div>
         ${filterByStatus('treatment').length === 0 ? `<div style="text-align:center; padding:24px 10px; border:2px dashed var(--gray-300); border-radius:var(--radius-md); color:var(--gray-400); font-size:12px;">ไม่มีคิว</div>` : 
           filterByStatus('treatment').map(q => `
-            <div class="kanban-card" style="border-left-color: var(--info);">
+            <div class="kanban-card" style="border-left-color: var(--info); position:relative; padding-right:42px;">
+              ${renderQueueCardActions(q)}
               <span class="kanban-card-title">${q.patientName}</span>
               <span style="font-size:12px; color:var(--gray-500);">HN-${String(q.patientId).padStart(4, '0')} | วินิจฉัย: ${q.diagnostics || '-'}</span>
               <button class="btn btn-primary btn-sm btn-treatment-act" data-id="${q.id}" style="width:100%; margin-top:8px;">ทำหัตถการเสร็จสิ้น</button>
@@ -926,7 +971,8 @@ function renderQueueOriginal(state) {
         </div>
         ${filterByStatus('billing').length === 0 ? `<div style="text-align:center; padding:24px 10px; border:2px dashed var(--gray-300); border-radius:var(--radius-md); color:var(--gray-400); font-size:12px;">ไม่มีคิว</div>` : 
           filterByStatus('billing').map(q => `
-            <div class="kanban-card" style="border-left-color: var(--accent);">
+            <div class="kanban-card" style="border-left-color: var(--accent); position:relative; padding-right:42px;">
+              ${renderQueueCardActions(q)}
               <span class="kanban-card-title">${q.patientName}</span>
               <span style="font-size:12px; color:var(--gray-500);">HN-${String(q.patientId).padStart(4, '0')} | รอชำระค่ารักษา</span>
               <button class="btn btn-primary btn-sm btn-billing-act" data-id="${q.id}" style="width:100%; margin-top:8px;">สรุปยอด & จ่ายเงิน</button>
@@ -935,6 +981,75 @@ function renderQueueOriginal(state) {
         }
       </div>
     </div>
+
+    <!-- Modal: Quick Edit Queue -->
+    <div class="modal-backdrop" id="modal-queue-edit-quick" style="display:none;">
+      <div class="modal-container" style="max-width:500px;">
+        <div class="modal-header">
+          <h3>แก้ไขข้อมูลคิวและขั้นตอนบริการ</h3>
+          <button class="close-btn" id="modal-queue-edit-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="form-queue-edit-quick">
+            <input type="hidden" id="eq-id">
+            
+            <div class="form-group">
+              <label for="eq-time">เวลาคิว *</label>
+              <input type="time" class="form-control" id="eq-time" required>
+            </div>
+
+            <div class="form-group">
+              <label for="eq-status">ขั้นตอนการบริการ (สถานะคิว) *</label>
+              <select id="eq-status" required>
+                <option value="waiting_intake">1. ซักประวัติ & สัญญาณชีพ</option>
+                <option value="consulting">2. ตรวจรักษาแพทย์แผนไทย</option>
+                <option value="treatment">3. จุดหัตถการ & สปาบำบัด</option>
+                <option value="billing">4. การรับชำระเงิน & รับยาสมุนไพร</option>
+                <option value="completed">5. เสร็จสิ้นบริการ (ย้ายออกจากบอร์ดคิว)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="eq-symptoms">อาการแรกรับ / ความต้องการของผู้ให้บริการ *</label>
+              <textarea id="eq-symptoms" rows="2" class="form-control" required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="eq-diagnostics">ผลการวินิจฉัยแพทย์</label>
+              <textarea id="eq-diagnostics" rows="2" class="form-control"></textarea>
+            </div>
+
+            <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
+              <div class="form-group">
+                <label for="eq-bp">ความดันโลหิต (mmHg)</label>
+                <input type="text" class="form-control" id="eq-bp" placeholder="120/80">
+              </div>
+              <div class="form-group">
+                <label for="eq-pulse">ชีพจร (ครั้ง/นาที)</label>
+                <input type="text" class="form-control" id="eq-pulse" placeholder="72">
+              </div>
+            </div>
+            
+            <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
+              <div class="form-group">
+                <label for="eq-temp">อุณหภูมิ (°C)</label>
+                <input type="text" class="form-control" id="eq-temp" placeholder="36.5">
+              </div>
+              <div class="form-group">
+                <label for="eq-weight">น้ำหนัก (กก.)</label>
+                <input type="text" class="form-control" id="eq-weight" placeholder="60">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-queue-edit-cancel">ยกเลิก</button>
+          <button class="btn btn-primary" form="form-queue-edit-quick" type="submit">บันทึกการแก้ไขคิว</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
     <!-- Intake Modal -->
     <div class="modal-backdrop" id="modal-intake" style="display:none;">
@@ -1049,6 +1164,74 @@ export function setupQueueEvents(state, navigate) {
     });
   });
 
+  // Edit Queue Event Listeners
+  document.querySelectorAll('.btn-queue-edit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const qId = Number(e.currentTarget.dataset.id);
+      const queueObj = state.queues.find(q => q.id === qId);
+      if (!queueObj) return;
+
+      document.getElementById('eq-id').value = qId;
+      document.getElementById('eq-time').value = queueObj.time || '';
+      document.getElementById('eq-status').value = queueObj.status || 'waiting_intake';
+      document.getElementById('eq-symptoms').value = queueObj.symptoms || '';
+      document.getElementById('eq-diagnostics').value = queueObj.diagnostics || '';
+      document.getElementById('eq-bp').value = queueObj.vitals?.bp || '';
+      document.getElementById('eq-pulse').value = queueObj.vitals?.pulse || '';
+      document.getElementById('eq-temp').value = queueObj.vitals?.temp || '';
+      document.getElementById('eq-weight').value = queueObj.vitals?.weight || '';
+
+      document.getElementById('modal-queue-edit-quick').style.display = 'flex';
+    });
+  });
+
+  const closeQuickEdit = () => {
+    const el = document.getElementById('modal-queue-edit-quick');
+    if (el) el.style.display = 'none';
+  };
+  document.getElementById('modal-queue-edit-close')?.addEventListener('click', closeQuickEdit);
+  document.getElementById('btn-queue-edit-cancel')?.addEventListener('click', closeQuickEdit);
+
+  document.getElementById('form-queue-edit-quick')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const qId = Number(document.getElementById('eq-id').value);
+    const queueObj = state.queues.find(q => q.id === qId);
+    if (!queueObj) return;
+
+    queueObj.time = document.getElementById('eq-time').value;
+    queueObj.status = document.getElementById('eq-status').value;
+    queueObj.symptoms = document.getElementById('eq-symptoms').value;
+    queueObj.diagnostics = document.getElementById('eq-diagnostics').value;
+    queueObj.vitals = {
+      bp: document.getElementById('eq-bp').value,
+      pulse: document.getElementById('eq-pulse').value,
+      temp: document.getElementById('eq-temp').value,
+      weight: document.getElementById('eq-weight').value
+    };
+
+    await ClinicDB.updateQueue(queueObj);
+    state.queues = await ClinicDB.getQueues();
+    closeQuickEdit();
+    navigate('queue');
+  });
+
+  // Delete Queue Event Listener
+  document.querySelectorAll('.btn-queue-delete').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const qId = Number(e.currentTarget.dataset.id);
+      const queueObj = state.queues.find(q => q.id === qId);
+      if (!queueObj) return;
+
+      if (confirm(`⚠️ คุณต้องการยกเลิกและลบคิวของคนไข้ "${queueObj.patientName}" ออกจากระบบคิวของวันนี้ใช่หรือไม่? (การลบนี้ไม่มีผลกระทบต่อประวัติคนไข้หลัก)`)) {
+        await ClinicDB.deleteQueue(qId);
+        state.queues = await ClinicDB.getQueues();
+        navigate('queue');
+      }
+    });
+  });
+
   // Bind clear seed buttons
   document.getElementById('btn-clear-seed-data')?.addEventListener('click', async () => {
     if (confirm('คุณต้องการลบข้อมูลสาธิตออกทั้งหมดเพื่อเริ่มระบบแบบว่างเปล่าใช่หรือไม่?')) {
@@ -1117,7 +1300,7 @@ export function renderMedicalRecords(state) {
               <div class="grid-cols-2" style="grid-template-columns: 280px 1fr; margin-top:20px;">
                 <div class="card" style="background-color:var(--gray-50);">
                   <h4 style="font-weight:700; margin-bottom:12px;">ข้อมูลสุขภาพหลัก</h4>
-                  <p><strong>ชื่อ-นามสกุล:</strong><br>${patient.name}</p>
+                  <p><strong>ชื่อ-นามสกุล:</strong><br>${patient.name} ${patient.nickname ? `(${patient.nickname})` : ''}</p>
                   <p><strong>เบอร์โทรศัพท์:</strong> ${patient.phone}</p>
                   <p><strong>เพศ:</strong> ${patient.gender || '-'}</p>
                   <p><strong>ธาตุเจ้าเรือน:</strong> <span class="elem-chip ${elem.css}">${elem.name}</span></p>
@@ -1134,7 +1317,7 @@ export function renderMedicalRecords(state) {
                       return `
                         <div style="border:1px solid var(--gray-200); border-radius:var(--radius-md); padding:16px; margin-bottom:12px; font-size:13px; line-height:1.6;">
                           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--gray-100); padding-bottom:8px; margin-bottom:8px;">
-                            <strong>ครั้งที่ ${doneVisits.length - index} : ${new Date(v.date).toLocaleDateString('th-TH')} (${v.time} น.)</strong>
+                            <strong>ครั้งที่ ${doneVisits.length - index} : ${formatDateBE(v.date)} (${v.time} น.)</strong>
                             ${ttm.diseaseGroup ? `<span class="badge primary">${ttm.diseaseGroup}</span>` : ''}
                           </div>
                           <p><strong>อาการแรกรับ:</strong> ${v.symptoms || '-'}</p>
@@ -1170,7 +1353,7 @@ export function renderMedicalRecords(state) {
                       patientServices.map((sr, index) => `
                         <div style="border:1px solid var(--gray-200); border-radius:var(--radius-md); padding:16px; margin-bottom:12px; font-size:13px; line-height:1.6; background-color:#f9fafb;">
                           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--gray-100); padding-bottom:8px; margin-bottom:8px; font-weight:600;">
-                            <span>ครั้งที่ ${patientServices.length - index} : ${new Date(sr.date).toLocaleDateString('th-TH')} (${sr.time} น.)</span>
+                            <span>ครั้งที่ ${patientServices.length - index} : ${formatDateBE(sr.date)} (${sr.time} น.)</span>
                             <span class="badge success">Pain Score: ${sr.painBefore} -> ${sr.painAfter}</span>
                           </div>
                           <p><strong>อาการสำคัญ / ความต้องการ:</strong> ${sr.symptoms || '-'}</p>
@@ -1350,6 +1533,12 @@ export function renderMedicalRecords(state) {
                 </select>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-edit-add-service">เพิ่ม</button>
               </div>
+              <div style="display:flex; gap:10px; margin-bottom:12px; align-items:center; background-color:#f1f5f9; padding:6px; border-radius:4px; margin-top:8px;">
+                <span style="font-size:11px; font-weight:600; color:var(--gray-600); white-space:nowrap;">หรือพิมพ์ป้อนเอง:</span>
+                <input type="text" id="edit-custom-svc-name" placeholder="ชื่อบริการ/หัตถการพิเศษ..." class="form-control" style="margin:0; flex-grow:1; font-size:12px; height:28px; padding:2px 6px;">
+                <input type="number" step="any" id="edit-custom-svc-price" placeholder="ราคา..." class="form-control" style="margin:0; width:80px; font-size:12px; height:28px; padding:2px 6px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-edit-add-custom-svc" style="height:28px; padding:2px 8px;">เพิ่ม</button>
+              </div>
               <div class="table-container" style="max-height:150px; overflow-y:auto; background-color:var(--gray-50); margin-bottom:12px;">
                 <table id="tbl-edit-services">
                   <thead>
@@ -1378,6 +1567,13 @@ export function renderMedicalRecords(state) {
                   </optgroup>
                 </select>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-edit-add-medicine">เพิ่มยา</button>
+              </div>
+              <div style="display:flex; gap:10px; margin-bottom:12px; align-items:center; background-color:#f1f5f9; padding:6px; border-radius:4px; margin-top:8px;">
+                <span style="font-size:11px; font-weight:600; color:var(--gray-600); white-space:nowrap;">หรือพิมพ์ป้อนเอง:</span>
+                <input type="text" id="edit-custom-med-name" placeholder="ชื่อยา/สินค้าพิเศษ..." class="form-control" style="margin:0; flex-grow:1; font-size:12px; height:28px; padding:2px 6px;">
+                <input type="number" id="edit-custom-med-qty" placeholder="จำนวน..." min="1" value="1" class="form-control" style="margin:0; width:60px; font-size:12px; height:28px; padding:2px 6px;">
+                <input type="number" step="any" id="edit-custom-med-price" placeholder="ราคา..." class="form-control" style="margin:0; width:70px; font-size:12px; height:28px; padding:2px 6px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-edit-add-custom-med" style="height:28px; padding:2px 8px;">เพิ่ม</button>
               </div>
               <div class="table-container" style="max-height:150px; overflow-y:auto; background-color:var(--gray-50); margin-bottom:12px;">
                 <table id="tbl-edit-prescriptions">
@@ -1589,7 +1785,7 @@ export function setupMedicalRecordsEvents(state, navigate) {
       document.getElementById('edit-visit-queue-id').value = qId;
       document.getElementById('edit-visit-patient-meta').innerHTML = `
         <strong>คนไข้:</strong> ${queueObj.patientName} (HN-${String(queueObj.patientId).padStart(4, '0')})<br>
-        <strong>วันที่ตรวจ:</strong> ${new Date(queueObj.date).toLocaleDateString('th-TH')} | <strong>เวลา:</strong> ${queueObj.time} น.
+        <strong>วันที่ตรวจ:</strong> ${formatDateBE(queueObj.date)} | <strong>เวลา:</strong> ${queueObj.time} น.
       `;
       document.getElementById('e-diagnostics').value = queueObj.diagnostics || '';
       document.getElementById('e-discount').value = saleObj.discount || 0;
@@ -1614,6 +1810,22 @@ export function setupMedicalRecordsEvents(state, navigate) {
     updateEditTables();
   });
 
+  // Add Custom Service in Edit
+  document.getElementById('btn-edit-add-custom-svc')?.addEventListener('click', () => {
+    const nameInput = document.getElementById('edit-custom-svc-name');
+    const priceInput = document.getElementById('edit-custom-svc-price');
+    const name = nameInput.value.trim();
+    if (!name) {
+      alert('กรุณากรอกชื่อบริการ/หัตถการพิเศษ');
+      return;
+    }
+    const price = Number(priceInput.value) || 0;
+    editModalServices.push({ itemId: 0, name: name, price: price, type: 'service' });
+    nameInput.value = '';
+    priceInput.value = '';
+    updateEditTables();
+  });
+
   // Remove Service in Edit
   document.addEventListener('click', (e) => {
     if (e.target.classList.contains('btn-del-edit-svc')) {
@@ -1635,6 +1847,32 @@ export function setupMedicalRecordsEvents(state, navigate) {
     } else {
       editModalPrescriptions.push({ itemId: item.id, name: item.name, qty: 1, price: item.price, unit: item.unit });
     }
+    updateEditTables();
+  });
+
+  // Add Custom Medicine in Edit
+  document.getElementById('btn-edit-add-custom-med')?.addEventListener('click', () => {
+    const nameInput = document.getElementById('edit-custom-med-name');
+    const qtyInput = document.getElementById('edit-custom-med-qty');
+    const priceInput = document.getElementById('edit-custom-med-price');
+    const name = nameInput.value.trim();
+    if (!name) {
+      alert('กรุณากรอกชื่อยา/ผลิตภัณฑ์พิเศษ');
+      return;
+    }
+    const qty = Number(qtyInput.value) || 1;
+    const price = Number(priceInput.value) || 0;
+    
+    const existing = editModalPrescriptions.find(p => p.itemId === 0 && p.name === name);
+    if (existing) {
+      existing.qty += qty;
+    } else {
+      editModalPrescriptions.push({ itemId: 0, name: name, qty: qty, price: price, unit: 'ชิ้น' });
+    }
+    
+    nameInput.value = '';
+    qtyInput.value = '1';
+    priceInput.value = '';
     updateEditTables();
   });
 
@@ -1957,6 +2195,10 @@ export function renderConsultation(state) {
 
   if (!queueObj) {
     const consultingQueues = state.queues.filter(q => q.status === 'consulting');
+    const todayStr = new Date().toISOString().split('T')[0];
+    // Patients checked today: status in treatment, billing, completed and date is today
+    const checkedToday = state.queues.filter(q => q.date === todayStr && (q.status === 'treatment' || q.status === 'billing' || q.status === 'completed'));
+
     return `
       ${renderSeedDataBanner(state)}
       <div class="page-header">
@@ -1970,7 +2212,7 @@ export function renderConsultation(state) {
       <div class="card" style="margin-bottom: 24px;">
         <h3 style="font-weight:700; margin-bottom:14px; color:var(--primary); display:flex; align-items:center; gap:8px;">
           <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          รายชื่อคนไข้รอรับการวินิจฉัย (ห้องแพทย์)
+          รายชื่อคนไข้รอรับการวินิจฉัย (ห้องแพทย์) (${consultingQueues.length} คน)
         </h3>
         <div class="table-container">
           <table>
@@ -2008,6 +2250,60 @@ export function renderConsultation(state) {
         </div>
       </div>
 
+      <!-- Today's Checked Patients -->
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 style="font-weight:700; margin-bottom:14px; color:var(--success); display:flex; align-items:center; gap:8px;">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          รายชื่อคนไข้ที่ผ่านการตรวจวินิจฉัยแล้ววันนี้ (${checkedToday.length} คน)
+        </h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>เวลาคิว</th>
+                <th>HN</th>
+                <th>ชื่อคนไข้</th>
+                <th>วินิจฉัยโรค</th>
+                <th>รายการสั่งจ่าย</th>
+                <th>สถานะคิว</th>
+                <th style="width:200px; text-align:center;">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${checkedToday.length === 0 ? `
+                <tr>
+                  <td colspan="7" style="text-align:center; padding:24px; color:var(--gray-400);">
+                    ยังไม่มีคนไข้ผ่านการวินิจฉัยเสร็จสิ้นในวันนี้
+                  </td>
+                </tr>
+              ` : checkedToday.map(q => `
+                <tr>
+                  <td>${q.time} น.</td>
+                  <td>HN-${String(q.patientId).padStart(4, '0')}</td>
+                  <td><strong>${q.patientName}</strong></td>
+                  <td><span style="font-style:italic;">"${q.diagnostics || '-'}"</span></td>
+                  <td>
+                    <div style="font-size:11px; color:var(--gray-600);">
+                      <strong>หัตถการ:</strong> ${q.treatments?.map(t => t.name).join(', ') || 'ไม่มี'}<br>
+                      <strong>ยา/สินค้า:</strong> ${q.prescriptions?.map(p => `${p.name} (x${p.qty})`).join(', ') || 'ไม่มี'}
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge ${q.status === 'completed' ? 'success' : q.status === 'billing' ? 'warning' : 'secondary'}">
+                      ${q.status === 'treatment' ? 'ห้องทำหัตถการ' : q.status === 'billing' ? 'รอแคชเชียร์จ่ายเงิน' : 'เสร็จสิ้น'}
+                    </span>
+                  </td>
+                  <td style="text-align:center;">
+                    <button class="btn btn-secondary btn-sm btn-consult-edit-today" data-id="${q.id}">แก้ไขผลตรวจ</button>
+                    <button class="btn btn-danger btn-sm btn-consult-delete-today" data-id="${q.id}">ลบคิวตรวจ</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card" style="background-color:var(--gray-50); border:1px dashed var(--gray-300);">
         <h4 style="font-weight:700; margin-bottom:8px;">💡 คำแนะนำบทบาทห้องตรวจแพทย์แผนไทย</h4>
         <p style="font-size:13px; color:var(--gray-600); line-height:1.6;">
@@ -2023,6 +2319,9 @@ export function renderConsultation(state) {
   const services = state.inventory.filter(i => i.type === 'service');
   const packages = state.inventory.filter(i => i.type === 'package');
 
+  const doneVisits = state.queues.filter(q => q.patientId === queueObj.patientId && q.status === 'completed');
+  const patientServices = state.service_records?.filter(sr => sr.patientId === queueObj.patientId) || [];
+
   return `
     ${renderSeedDataBanner(state)}
     <div class="page-header">
@@ -2035,15 +2334,46 @@ export function renderConsultation(state) {
 
     <div class="grid-cols-2" style="grid-template-columns: 300px 1fr;">
       <!-- Patient card info -->
-      <div class="card">
-        <h4 style="font-weight:700; margin-bottom:12px; border-bottom:1px solid var(--gray-200); padding-bottom:6px;">สรุปเวชระเบียน</h4>
-        <div class="finance-stats" style="gap:8px; font-size:13px;">
-          <p><strong>ชื่อ-นามสกุล:</strong> ${patientObj.name}</p>
-          <p><strong>อายุ:</strong> ${patientObj.birthdate ? new Date().getFullYear() - new Date(patientObj.birthdate).getFullYear() : '-'} ปี</p>
-          <p><strong>ธาตุเจ้าเรือน:</strong> ${patientObj.element || 'ไม่ระบุ'}</p>
-          <p style="color:var(--danger)"><strong>โรคประจำตัว:</strong> ${patientObj.congenitalDiseases || 'ไม่มี'}</p>
-          <p style="color:var(--danger)"><strong>แพ้ยา:</strong> ${patientObj.allergies || 'ไม่มี'}</p>
-          <p style="background-color:var(--gray-100); padding:8px; border-radius:var(--radius-sm);"><strong>อาการ:</strong> "${queueObj.symptoms}"</p>
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card" style="margin-bottom:0;">
+          <h4 style="font-weight:700; margin-bottom:12px; border-bottom:1px solid var(--gray-200); padding-bottom:6px;">สรุปเวชระเบียน</h4>
+          <div class="finance-stats" style="gap:8px; font-size:13px;">
+            <p><strong>ชื่อ-นามสกุล:</strong> ${patientObj.name} ${patientObj.nickname ? `(${patientObj.nickname})` : ''}</p>
+            <p><strong>อายุ:</strong> ${patientObj.birthdate ? new Date().getFullYear() - new Date(patientObj.birthdate).getFullYear() : '-'} ปี</p>
+            <p><strong>ธาตุเจ้าเรือน:</strong> ${patientObj.element || 'ไม่ระบุ'}</p>
+            <p style="color:var(--danger)"><strong>โรคประจำตัว:</strong> ${patientObj.congenitalDiseases || 'ไม่มี'}</p>
+            <p style="color:var(--danger)"><strong>แพ้ยา:</strong> ${patientObj.allergies || 'ไม่มี'}</p>
+            <p style="background-color:var(--gray-100); padding:8px; border-radius:var(--radius-sm); margin: 0;"><strong>อาการ:</strong> "${queueObj.symptoms}"</p>
+          </div>
+        </div>
+
+        <!-- Scrollable Past History EMR -->
+        <div class="card" style="max-height:400px; overflow-y:auto; padding:12px; margin-bottom:0;">
+          <h4 style="font-weight:700; margin-bottom:8px; border-bottom:1px solid var(--gray-200); padding-bottom:6px; color:var(--primary);">📜 ประวัติการตรวจรักษาย้อนหลัง</h4>
+          ${doneVisits.length === 0 && patientServices.length === 0 ? `<p style="color:var(--gray-400); font-size:11px; text-align:center; padding:16px;">ไม่พบประวัติการรักษาย้อนหลัง</p>` : ''}
+          
+          ${doneVisits.map((v, idx) => `
+            <div style="border:1px solid var(--gray-200); border-radius:4px; padding:8px; margin-bottom:8px; font-size:11px; line-height:1.4; background:#fff;">
+              <div style="font-weight:700; border-bottom:1px solid var(--gray-100); padding-bottom:4px; margin-bottom:4px; display:flex; justify-content:space-between;">
+                <span>ตรวจ: ${formatDateBE(v.date)}</span>
+                <span style="color:var(--primary);">${v.ttmDiag?.diseaseGroup || 'ตรวจทั่วไป'}</span>
+              </div>
+              <p><strong>วินิจฉัย:</strong> ${v.diagnostics || '-'}</p>
+              <p><strong>หัตถการ:</strong> ${v.treatments?.map(t => t.name).join(', ') || 'ไม่มี'}</p>
+              <p><strong>ยา/สินค้า:</strong> ${v.prescriptions?.map(p => `${p.name} (x${p.qty})`).join(', ') || 'ไม่มี'}</p>
+            </div>
+          `).join('')}
+
+          ${patientServices.map((sr, idx) => `
+            <div style="border:1px solid var(--gray-200); border-radius:4px; padding:8px; margin-bottom:8px; font-size:11px; line-height:1.4; background:#f9fafb;">
+              <div style="font-weight:700; border-bottom:1px solid var(--gray-100); padding-bottom:4px; margin-bottom:4px; display:flex; justify-content:space-between; color:var(--success);">
+                <span>สปา: ${formatDateBE(sr.date)}</span>
+                <span>Pain: ${sr.painBefore}->${sr.painAfter}</span>
+              </div>
+              <p><strong>อาการ:</strong> ${sr.symptoms || '-'}</p>
+              <p><strong>บริการ:</strong> ${sr.details || '-'}</p>
+            </div>
+          `).join('')}
         </div>
       </div>
 
@@ -2265,6 +2595,25 @@ export function setupConsultationEvents(state, navigate) {
       btn.addEventListener('click', (e) => {
         window.activeConsultQueueId = Number(e.target.closest('button').dataset.id);
         navigate('consultation');
+      });
+    });
+    // Edit completed consultation today
+    document.querySelectorAll('.btn-consult-edit-today').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        window.activeConsultQueueId = Number(e.currentTarget.dataset.id);
+        navigate('consultation');
+      });
+    });
+    // Delete completed consultation queue today
+    document.querySelectorAll('.btn-consult-delete-today').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const qId = Number(e.currentTarget.dataset.id);
+        const q = state.queues.find(itm => itm.id === qId);
+        if (q && confirm(`⚠️ คุณแน่ใจว่าต้องการลบรายการคิวตรวจของคนไข้ "${q.patientName}" หรือไม่? (รายการสั่งจ่ายทั้งหมดของคิวนี้จะถูกลบออกด้วย)`)) {
+          await ClinicDB.deleteQueue(qId);
+          state.queues = await ClinicDB.getQueues();
+          navigate('consultation');
+        }
       });
     });
     return;
@@ -2833,7 +3182,7 @@ export function renderFollowUp(state) {
             ${pendingList.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:var(--gray-400); padding:24px 10px;">ไม่มีรายการรอการติดต่อติดตามอาการ</td></tr>` : 
               pendingList.map(f => `
                 <tr>
-                  <td>${new Date(f.date).toLocaleDateString('th-TH')}</td>
+                  <td>${formatDateBE(f.date)}</td>
                   <td><strong>${f.patientName} (HN-${String(f.patientId).padStart(4, '0')})</strong></td>
                   <td><span class="badge primary">${f.reason || 'ติดตามอาการหลังบริการ'}</span></td>
                   <td>${f.notes || '-'}</td>
@@ -2870,7 +3219,7 @@ export function renderFollowUp(state) {
             ${contactedList.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:var(--gray-400); padding:24px 10px;">ยังไม่มีประวัติการติดต่อสำเร็จ</td></tr>` : 
               contactedList.map(f => `
                 <tr>
-                  <td>${f.contactedDate ? new Date(f.contactedDate).toLocaleDateString('th-TH') : new Date(f.date).toLocaleDateString('th-TH')}</td>
+                  <td>${f.contactedDate ? formatDateBE(f.contactedDate) : formatDateBE(f.date)}</td>
                   <td><strong>${f.patientName} (HN-${String(f.patientId).padStart(4, '0')})</strong></td>
                   <td><strong>${f.reason || 'ติดตามอาการหลังบริการ'}</strong></td>
                   <td>
@@ -3196,7 +3545,7 @@ export function renderBilling(state) {
                 ${unpaidList.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:var(--gray-400); padding:16px 0;">ไม่มีรายการค้างชำระค้างจ่าย</td></tr>` : 
                   unpaidList.map(item => `
                     <tr>
-                      <td>${new Date(item.date).toLocaleDateString('th-TH', {day:'numeric', month:'short'})}</td>
+                      <td>${formatDateBE(item.date, 'short-month')}</td>
                       <td><strong>${item.patientName}</strong></td>
                       <td style="font-weight:700; color:var(--danger)">฿${item.netAmount.toLocaleString()}</td>
                       <td style="text-align:center;">
@@ -3426,7 +3775,7 @@ export function setupBillingEvents(state, navigate) {
       <div>
         คนไข้: ${queueObj.patientName}<br>
         HN: HN-${String(queueObj.patientId).padStart(4, '0')}<br>
-        วันที่: ${new Date().toLocaleDateString('th-TH')}<br>
+        วันที่: ${formatDateBE(new Date())}<br>
         -----------------------------
       </div>
       <div style="margin: 8px 0;">
@@ -3732,7 +4081,7 @@ export function renderIncome(state) {
             ${list.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--gray-400); padding:20px;">ยังไม่มีข้อมูลบันทึกรายรับสะสมในระบบ</td></tr>` : 
               list.map(s => `
                 <tr>
-                  <td>${new Date(s.date).toLocaleDateString('th-TH')}</td>
+                  <td>${formatDateBE(s.date)}</td>
                   <td>${s.time || '-'}</td>
                   <td>
                     ${s.patientId 
@@ -4084,7 +4433,7 @@ export function renderExpenses(state) {
             ${list.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:var(--gray-400);">ไม่มีบันทึกข้อมูลรายจ่ายการดำเนินงาน</td></tr>` : 
               list.map(e => `
                 <tr>
-                  <td>${new Date(e.date).toLocaleDateString('th-TH')}</td>
+                  <td>${formatDateBE(e.date)}</td>
                   <td><strong>${e.description}</strong></td>
                   <td><span class="badge primary">${e.category}</span></td>
                   <td style="text-align:right; font-weight:700; color:var(--danger)">฿${e.amount.toLocaleString()}</td>
@@ -4364,7 +4713,7 @@ export function renderStartupCosts(state) {
             ${list.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:var(--gray-400);">ไม่มีการบันทึกต้นทุนจุดจัดตั้งร้านเริ่มต้น</td></tr>` : 
               list.map(s => `
                 <tr>
-                  <td>${new Date(s.date).toLocaleDateString('th-TH')}</td>
+                  <td>${formatDateBE(s.date)}</td>
                   <td><strong>${s.description}</strong></td>
                   <td><span class="badge warning">${s.category}</span></td>
                   <td style="text-align:right; font-weight:700; color:var(--accent)">฿${s.amount.toLocaleString()}</td>
@@ -4820,8 +5169,8 @@ export function renderFinancialReports(state) {
       <div class="card">
         <h3 style="font-weight:700; margin-bottom:12px; color:var(--primary);">งบดำเนินงานโดยสรุป (P&L Overview)</h3>
         <div class="finance-stats" style="gap:12px; font-size:14px; margin-top:16px;">
-          <div class="finance-row"><span>วันเริ่มต้นรายงาน:</span><span>${startStr ? new Date(startStr).toLocaleDateString('th-TH') : 'จุดเริ่มต้น'}</span></div>
-          <div class="finance-row"><span>วันสิ้นสุดรายงาน:</span><span>${endStr ? new Date(endStr).toLocaleDateString('th-TH') : 'ปัจจุบัน'}</span></div>
+          <div class="finance-row"><span>วันเริ่มต้นรายงาน:</span><span>${startStr ? formatDateBE(startStr) : 'จุดเริ่มต้น'}</span></div>
+          <div class="finance-row"><span>วันสิ้นสุดรายงาน:</span><span>${endStr ? formatDateBE(endStr) : 'ปัจจุบัน'}</span></div>
           <div class="finance-row"><span>สัดส่วนค่าใช้จ่ายต่อรายได้:</span><span>${revenueSum > 0 ? ((expenseSum / revenueSum) * 100).toFixed(1) : 0}%</span></div>
           <div class="finance-row" style="font-weight:700; border-top:2px solid var(--gray-300); padding-top:8px;">
             <span>กำไรสุทธิรวม:</span>
@@ -5090,7 +5439,7 @@ export function renderHerbs(state) {
       <td style="text-align:right; font-weight:600; color:var(--primary);">฿${h.price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
       <td style="text-align:center; font-weight:700; color:${h.stock < 5 ? 'var(--danger)' : 'var(--dark)'}">${h.stock}</td>
       <td>${h.unit || 'ขวด'}</td>
-      <td><span style="color:${h.expiry && new Date(h.expiry) < new Date() ? 'var(--danger)' : 'var(--dark)'}">${h.expiry ? new Date(h.expiry).toLocaleDateString('th-TH') : '-'}</span></td>
+      <td><span style="color:${h.expiry && new Date(h.expiry) < new Date() ? 'var(--danger)' : 'var(--dark)'}">${h.expiry ? formatDateBE(h.expiry) : '-'}</span></td>
       <td style="text-align:center; white-space:nowrap;">
         <div style="display:flex; gap:6px; justify-content:center;">
           <button class="btn btn-secondary btn-sm btn-edit-herb" data-id="${h.id}">แก้ไข</button>
@@ -5926,7 +6275,7 @@ export function renderStockMovement(state) {
             ${list.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:var(--gray-400); padding:20px;">ไม่มีบันทึกข้อมูลประวัติการทำสต๊อกเข้าออกย้อนหลัง</td></tr>` : 
               list.map(m => `
                 <tr>
-                  <td>${new Date(m.date).toLocaleDateString('th-TH')}</td>
+                  <td>${formatDateBE(m.date)}</td>
                   <td><strong>${m.itemName}</strong></td>
                   <td>
                     <span class="badge ${m.type === 'in' ? 'success' : 'danger'}">
@@ -6150,7 +6499,7 @@ export function renderStockAlerts(state) {
                         ${m.name}
                       </a>
                     </td>
-                    <td style="color:var(--danger); font-weight:600;">${new Date(m.expiry).toLocaleDateString('th-TH')}</td>
+                    <td style="color:var(--danger); font-weight:600;">${formatDateBE(m.expiry)}</td>
                     <td style="text-align:center;">${m.stock}</td>
                   </tr>
                 `).join('')
@@ -7661,5 +8010,233 @@ export function setupWalkInSaleEvents(state, navigate) {
 
     alert(`บันทึกจ่ายยาและจำหน่ายสินค้าด่วนสำเร็จ! ชำระเงินสุทธิ ฿${total.toLocaleString()}`);
     navigate('income');
+  });
+}
+
+// Module-level variable for active intake check
+window.activeIntakeQueueId = null;
+
+export function renderIntake(state) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayQueues = state.queues.filter(q => q.date === todayStr);
+  const waitingList = todayQueues.filter(q => q.status === 'waiting_intake');
+  const finishedList = todayQueues.filter(q => q.status !== 'waiting_intake');
+
+  const activeQId = window.activeIntakeQueueId;
+  const activeQueueObj = activeQId ? state.queues.find(q => q.id === activeQId) : null;
+
+  return `
+    ${renderSeedDataBanner(state)}
+
+    <div class="page-header">
+      <div class="page-title-desc">
+        <h2>คัดกรอง ซักประวัติ และวัดสัญญาณชีพประจำวัน</h2>
+        <p>บันทึกความดัน ชีพจร อุณหภูมิ น้ำหนัก และอาการเจ็บป่วยเบื้องต้น ก่อนส่งตัวเข้าพบแพทย์</p>
+      </div>
+    </div>
+
+    ${activeQueueObj ? `
+      <!-- Active Intake Check Form -->
+      <div class="card" style="max-width: 600px; margin: 0 auto 24px auto; border: 1px solid var(--primary); padding: 24px;">
+        <h3 style="color:var(--primary); font-weight:700; margin-bottom:16px;">
+          📝 กำลังซักประวัติ: ${activeQueueObj.patientName} (HN-${String(activeQueueObj.patientId).padStart(4, '0')})
+        </h3>
+        <form id="form-intake-page">
+          <input type="hidden" id="ip-id" value="${activeQueueObj.id}">
+          
+          <div class="form-group">
+            <label for="ip-symptoms"><strong>อาการแรกรับ / ความต้องการของผู้เข้ารับบริการ *</strong></label>
+            <textarea class="form-control" id="ip-symptoms" rows="3" required placeholder="ปวดกล้ามเนื้อบริเวณสะบัก ปวดตึงบ่าร้าวขึ้นขมับ หรือนวดเพื่อผ่อนคลาย">${activeQueueObj.symptoms || ''}</textarea>
+          </div>
+
+          <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
+            <div class="form-group">
+              <label for="ip-bp">ความดันโลหิต (mmHg)</label>
+              <input type="text" class="form-control" id="ip-bp" placeholder="เช่น 120/80" value="${activeQueueObj.vitals?.bp || ''}">
+            </div>
+            <div class="form-group">
+              <label for="ip-pulse">ชีพจร (ครั้ง/นาที)</label>
+              <input type="text" class="form-control" id="ip-pulse" placeholder="เช่น 72" value="${activeQueueObj.vitals?.pulse || ''}">
+            </div>
+          </div>
+
+          <div class="grid-cols-2" style="margin-bottom:0; gap:16px;">
+            <div class="form-group">
+              <label for="ip-temp">อุณหภูมิร่างกาย (°C)</label>
+              <input type="text" class="form-control" id="ip-temp" placeholder="เช่น 36.5" value="${activeQueueObj.vitals?.temp || ''}">
+            </div>
+            <div class="form-group">
+              <label for="ip-weight">น้ำหนัก (กิโลกรัม)</label>
+              <input type="text" class="form-control" id="ip-weight" placeholder="เช่น 65" value="${activeQueueObj.vitals?.weight || ''}">
+            </div>
+          </div>
+
+          <div style="margin-top:20px; display:flex; gap:12px;">
+            <button class="btn btn-secondary" type="button" id="btn-cancel-intake-page" style="flex:1;">ยกเลิก</button>
+            <button class="btn btn-primary" type="submit" style="flex:2;">บันทึกและส่งเข้าห้องตรวจแพทย์ 🟢</button>
+          </div>
+        </form>
+      </div>
+    ` : ''}
+
+    <div class="grid-cols-2" style="gap:24px; align-items: start;">
+      <!-- Left Card: Waiting List -->
+      <div class="card" style="padding: 24px;">
+        <h3 style="font-weight:700; margin-bottom:14px; color:var(--primary); display:flex; align-items:center; gap:8px;">
+          <span class="badge primary" style="font-size:14px;">${waitingList.length} คน</span>
+          คนไข้รอคัดกรองสัญญาณชีพ
+        </h3>
+        
+        <div class="table-container" style="max-height: 400px; overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>เวลาคิว</th>
+                <th>HN</th>
+                <th>ชื่อคนไข้</th>
+                <th style="text-align:center;">การดำเนินการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${waitingList.length === 0 ? `
+                <tr>
+                  <td colspan="4" style="text-align:center; padding:32px; color:var(--gray-400);">
+                    ไม่มีคิวคนไข้รอคัดกรองในขณะนี้
+                  </td>
+                </tr>
+              ` : waitingList.map(q => `
+                <tr>
+                  <td>${q.time} น.</td>
+                  <td>HN-${String(q.patientId).padStart(4, '0')}</td>
+                  <td><strong>${q.patientName}</strong></td>
+                  <td style="text-align:center;">
+                    <button class="btn btn-primary btn-sm btn-start-intake-page" data-id="${q.id}">
+                      ซักประวัติ / ชั่งน้ำหนัก
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right Card: Finished List -->
+      <div class="card" style="padding: 24px;">
+        <h3 style="font-weight:700; margin-bottom:14px; color:var(--success); display:flex; align-items:center; gap:8px;">
+          ประวัติการคัดกรองสัญญาณชีพวันนี้ (${finishedList.length} คน)
+        </h3>
+        
+        <div class="table-container" style="max-height: 400px; overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>HN</th>
+                <th>ชื่อคนไข้</th>
+                <th>สัญญาณชีพ</th>
+                <th>สถานะคิว</th>
+                <th style="width:140px; text-align:center;">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${finishedList.length === 0 ? `
+                <tr>
+                  <td colspan="5" style="text-align:center; padding:32px; color:var(--gray-400);">
+                    ยังไม่มีคนไข้คัดกรองเสร็จสิ้นวันนี้
+                  </td>
+                </tr>
+              ` : finishedList.map(q => `
+                <tr>
+                  <td>HN-${String(q.patientId).padStart(4, '0')}</td>
+                  <td><strong>${q.patientName}</strong></td>
+                  <td>
+                    <div style="font-size:11px; color:var(--gray-700)">
+                      BP: ${q.vitals?.bp || '-'} | PR: ${q.vitals?.pulse || '-'}<br>
+                      T: ${q.vitals?.temp || '-'}°C | W: ${q.vitals?.weight || '-'} กก.
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge ${q.status === 'completed' ? 'success' : q.status === 'billing' ? 'warning' : 'secondary'}">
+                      ${q.status === 'consulting' ? 'ห้องตรวจแพทย์' : q.status === 'treatment' ? 'ทำหัตถการ' : q.status === 'billing' ? 'รอจ่ายเงิน' : 'เสร็จสิ้น'}
+                    </span>
+                  </td>
+                  <td style="text-align:center;">
+                    <button class="btn btn-secondary btn-sm btn-edit-intake-page" data-id="${q.id}">แก้ไข</button>
+                    <button class="btn btn-danger btn-sm btn-delete-intake-page" data-id="${q.id}">ลบ</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function setupIntakeEvents(state, navigate) {
+  // Click start intake
+  document.querySelectorAll('.btn-start-intake-page').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      window.activeIntakeQueueId = Number(e.currentTarget.dataset.id);
+      navigate('intake');
+    });
+  });
+
+  // Click edit intake
+  document.querySelectorAll('.btn-edit-intake-page').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      window.activeIntakeQueueId = Number(e.currentTarget.dataset.id);
+      navigate('intake');
+    });
+  });
+
+  // Click cancel intake form
+  document.getElementById('btn-cancel-intake-page')?.addEventListener('click', () => {
+    window.activeIntakeQueueId = null;
+    navigate('intake');
+  });
+
+  // Click delete intake
+  document.querySelectorAll('.btn-delete-intake-page').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const qId = Number(e.currentTarget.dataset.id);
+      const queueObj = state.queues.find(q => q.id === qId);
+      if (!queueObj) return;
+
+      if (confirm(`คุณต้องการยกเลิกและลบคิวของคนไข้ "${queueObj.patientName}" หรือไม่?`)) {
+        await ClinicDB.deleteQueue(qId);
+        state.queues = await ClinicDB.getQueues();
+        navigate('intake');
+      }
+    });
+  });
+
+  // Form submission
+  document.getElementById('form-intake-page')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const qId = Number(document.getElementById('ip-id').value);
+    const queueObj = state.queues.find(q => q.id === qId);
+    if (!queueObj) return;
+
+    queueObj.symptoms = document.getElementById('ip-symptoms').value;
+    queueObj.vitals = {
+      bp: document.getElementById('ip-bp').value,
+      pulse: document.getElementById('ip-pulse').value,
+      temp: document.getElementById('ip-temp').value,
+      weight: document.getElementById('ip-weight').value
+    };
+    
+    // Only upgrade status to consulting if it was waiting_intake
+    if (queueObj.status === 'waiting_intake') {
+      queueObj.status = 'consulting';
+    }
+
+    await ClinicDB.updateQueue(queueObj);
+    state.queues = await ClinicDB.getQueues();
+    window.activeIntakeQueueId = null;
+    
+    alert('🟢 บันทึกข้อมูลซักประวัติและวัดสัญญาณชีพเรียบร้อยแล้ว!');
+    navigate('intake');
   });
 }

@@ -27,6 +27,7 @@ const pageModules = {
   'customers': { render: pages.renderCustomers, setup: pages.setupCustomersEvents },
   'appointments': { render: pages.renderAppointments, setup: pages.setupAppointmentsEvents },
   'queue': { render: pages.renderQueue, setup: pages.setupQueueEvents },
+  'intake': { render: pages.renderIntake, setup: pages.setupIntakeEvents },
   'medical-records': { render: pages.renderMedicalRecords, setup: pages.setupMedicalRecordsEvents },
   'service-records': { render: pages.renderServiceRecords, setup: pages.setupServiceRecordsEvents },
   'consultation': { render: pages.renderConsultation, setup: pages.setupConsultationEvents },
@@ -63,6 +64,7 @@ const pageTitles = {
   'customers': 'รายชื่อลูกค้าและจุดรับบริการ',
   'appointments': 'บันทึกและระบบจองนัดหมายคิวสุขภาพ',
   'queue': 'บอร์ดความคืบหน้าคิวบริการประจำวัน',
+  'intake': 'จุดคัดกรอง ซักประวัติ และวัดสัญญาณชีพ',
   'medical-records': 'ทะเบียนเวชระเบียนประวัติผู้ป่วยเดี่ยว',
   'service-records': 'ใบบันทึกผลการบำบัดนวดสปาเฉพาะครั้ง',
   'consultation': 'ห้องตรวจแพทย์แผนไทยและการวิเคราะห์ธาตุ',
@@ -224,12 +226,10 @@ async function init() {
     // 3. Set display date in Header via JavaScript dynamically
     const headerDate = document.getElementById('current-header-date');
     if (headerDate) {
-      headerDate.textContent = new Date().toLocaleDateString('th-TH', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
+      const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const d = new Date();
+      headerDate.textContent = `วัน${days[d.getDay()]}ที่ ${d.getDate()} ${months[d.getMonth()]} พ.ศ. ${d.getFullYear() + 543}`;
     }
 
     // 4. Set Sidebar Clinic Name and Logo dynamically
