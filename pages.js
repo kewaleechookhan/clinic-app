@@ -1086,6 +1086,7 @@ export function renderMedicalRecords(state) {
       <div class="tab-container" style="margin-bottom: 20px;">
         <button class="tab-button ${activePatientsTab === 'list' ? 'active' : ''}" id="tab-patient-list">ประวัติคนไข้เดี่ยว</button>
         <button class="tab-button ${activePatientsTab === 'log' ? 'active' : ''}" id="tab-treatment-log">ประวัติการรักษารายวัน (Daily Log)</button>
+        <button class="tab-button ${activePatientsTab === 'service' ? 'active' : ''}" id="tab-service-records">บันทึกบริการสปา/ความงาม</button>
       </div>
 
       <!-- Tab Content 1: Medical Records list -->
@@ -1110,6 +1111,7 @@ export function renderMedicalRecords(state) {
             const birthMonth = patient.birthdate ? new Date(patient.birthdate).getMonth() + 1 : 0;
             const elem = getElementByMonth(birthMonth);
             const doneVisits = state.queues.filter(q => q.patientId === patient.id && q.status === 'completed');
+            const patientServices = state.service_records?.filter(sr => sr.patientId === patient.id) || [];
 
             return `
               <div class="grid-cols-2" style="grid-template-columns: 280px 1fr; margin-top:20px;">
@@ -1124,8 +1126,8 @@ export function renderMedicalRecords(state) {
                 </div>
 
                 <div class="card">
-                  <h4 style="font-weight:700; margin-bottom:12px;">ประวัติบำบัดรักษาทั้งหมด (${doneVisits.length} ครั้ง)</h4>
-                  ${doneVisits.length === 0 ? `<p style="color:var(--gray-400); text-align:center; padding:32px;">ไม่พบประวัติการเข้าตรวจ</p>` : 
+                  <h4 style="font-weight:700; margin-bottom:12px; color:var(--primary);">🩺 ประวัติบำบัดรักษาแพทย์แผนไทย (${doneVisits.length} ครั้ง)</h4>
+                  ${doneVisits.length === 0 ? `<p style="color:var(--gray-400); text-align:center; padding:24px; border:1px dashed var(--gray-200); border-radius:8px;">ไม่พบประวัติการเข้าตรวจวินิจฉัย</p>` : 
                     doneVisits.map((v, index) => {
                       const ttm = v.ttmDiag || {};
                       const intake = v.ttmIntake || {};
@@ -1160,6 +1162,24 @@ export function renderMedicalRecords(state) {
                       `;
                     }).join('')
                   }
+
+                  <!-- Spa service records history card -->
+                  <div style="margin-top:24px; border-top:2px solid var(--gray-200); padding-top:16px;">
+                    <h4 style="font-weight:700; margin-bottom:12px; color:var(--success);">💆 ประวัติบันทึกบริการสปา/ความงาม (${patientServices.length} ครั้ง)</h4>
+                    ${patientServices.length === 0 ? `<p style="color:var(--gray-400); text-align:center; padding:24px; border:1px dashed var(--gray-200); border-radius:8px;">ไม่มีประวัติการบันทึกบริการสปา</p>` :
+                      patientServices.map((sr, index) => `
+                        <div style="border:1px solid var(--gray-200); border-radius:var(--radius-md); padding:16px; margin-bottom:12px; font-size:13px; line-height:1.6; background-color:#f9fafb;">
+                          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--gray-100); padding-bottom:8px; margin-bottom:8px; font-weight:600;">
+                            <span>ครั้งที่ ${patientServices.length - index} : ${new Date(sr.date).toLocaleDateString('th-TH')} (${sr.time} น.)</span>
+                            <span class="badge success">Pain Score: ${sr.painBefore} -> ${sr.painAfter}</span>
+                          </div>
+                          <p><strong>อาการสำคัญ / ความต้องการ:</strong> ${sr.symptoms || '-'}</p>
+                          <p><strong>รายละเอียดบริการสปา:</strong> ${sr.details || '-'}</p>
+                          <p><strong>คำแนะนำ:</strong> ${sr.advice || '-'}</p>
+                        </div>
+                      `).join('')
+                    }
+                  </div>
                 </div>
               </div>
             `;
@@ -1227,6 +1247,71 @@ export function renderMedicalRecords(state) {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <!-- Tab Content 3: บันทึกบริการสปา/ความงาม -->
+      <div id="sec-service-records" style="display: ${activePatientsTab === 'service' ? 'block' : 'none'};">
+        <h3 style="margin-bottom:12px;">ลงบันทึกข้อมูลบริการสปา / ความงามเพื่อสุขภาพ</h3>
+        ${state.patients.length === 0 ? `
+          <p style="text-align:center; color:var(--gray-400); padding:24px;">กรุณาลงทะเบียนประวัติคนไข้ก่อนใช้งาน</p>
+        ` : (() => {
+            const pId = window.activeServicePatientId || (state.patients[0] ? state.patients[0].id : null);
+            const patient = state.patients.find(p => p.id === pId) || state.patients[0];
+            if (!patient) return `<p style="text-align:center; color:var(--gray-400); padding:24px;">ไม่พบข้อมูลคนไข้</p>`;
+
+            return `
+              <div class="card" style="max-width:700px; margin: 0 auto 16px auto; padding:16px; background-color:var(--gray-50);">
+                <div class="form-group" style="margin-bottom:0; display:flex; align-items:center; gap:12px;">
+                  <label for="sel-service-patient" style="font-weight:700; margin:0; color:var(--primary); white-space:nowrap;">เลือกคนไข้เพื่อลงบันทึกบริการ:</label>
+                  <select id="sel-service-patient" class="form-control" style="margin:0;">
+                    ${state.patients.map(p => `<option value="${p.id}" ${p.id === patient.id ? 'selected' : ''}>HN-${String(p.id).padStart(4, '0')} - ${p.name} (เบอร์: ${p.phone})</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+
+              <div class="card" style="max-width:700px; margin: 0 auto; padding:20px; border:1px solid var(--gray-200);">
+                <form id="form-spa-service">
+                  <input type="hidden" id="s-pat-id" value="${patient.id}">
+                  
+                  <div class="form-group">
+                    <label><strong>1. ระดับความเจ็บปวดก่อนทำบริการ (Pain Score ก่อน - สเกล 0-10)</strong></label>
+                    <div style="display:flex; align-items:center; gap:16px; margin-top:8px;">
+                      <input type="range" id="s-pain-before" min="0" max="10" value="5" style="flex-grow:1;">
+                      <span id="lbl-pain-before" style="font-weight:700; font-size:16px; color:var(--primary); width:30px; text-align:center;">5</span>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label><strong>2. ระดับความเจ็บปวดหลังทำบริการ (Pain Score หลัง - สเกล 0-10)</strong></label>
+                    <div style="display:flex; align-items:center; gap:16px; margin-top:8px;">
+                      <input type="range" id="s-pain-after" min="0" max="10" value="2" style="flex-grow:1;">
+                      <span id="lbl-pain-after" style="font-weight:700; font-size:16px; color:var(--success); width:30px; text-align:center;">2</span>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="s-symptoms"><strong>3. อาการสำคัญที่มาตรวจรักษา / ความพึงพอใจการผ่อนคลาย *</strong></label>
+                    <textarea class="form-control" id="s-symptoms" rows="3" required placeholder="เช่น ปวดสะบักล้าเกร็ง หรือ ประสงค์ทำสปาผิวกายเพื่อผ่อนคลาย"></textarea>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="s-details"><strong>4. รายละเอียดบริการสปา / หัตถการที่ให้บริการในครั้งนี้ *</strong></label>
+                    <textarea class="form-control" id="s-details" rows="3" required placeholder="เช่น นวดบำบัดกล้ามเนื้อบ่าไหล่ 60 นาที หรือ ขัดนวดผิวกายด้วยสมุนไพรพรีเมียม"></textarea>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="s-advice"><strong>5. คำแนะนำในการปฏิบัติตัวหลังทำบริการสปา / การนวดบำบัด *</strong></label>
+                    <textarea class="form-control" id="s-advice" rows="2" required placeholder="เช่น ดื่มน้ำอุ่นปริมาณมาก หลีกเลี่ยงเครื่องดื่มเย็นหรือแอลกอฮอล์ 24 ชม."></textarea>
+                  </div>
+
+                  <div style="margin-top:20px; display:flex; gap:12px;">
+                    <button class="btn btn-secondary" type="button" id="btn-cancel-spa-record" style="flex:1;">ยกเลิก</button>
+                    <button class="btn btn-primary" type="submit" style="flex:2;">บันทึกข้อมูลสปาบำบัด</button>
+                  </div>
+                </form>
+              </div>
+            `;
+        })()}
       </div>
     </div>
 
@@ -1343,23 +1428,98 @@ export function setupMedicalRecordsEvents(state, navigate) {
   // Tab switching
   const tabList = document.getElementById('tab-patient-list');
   const tabLog = document.getElementById('tab-treatment-log');
+  const tabService = document.getElementById('tab-service-records');
   const secList = document.getElementById('sec-patient-list');
   const secLog = document.getElementById('sec-treatment-log');
+  const secService = document.getElementById('sec-service-records');
 
   tabList?.addEventListener('click', () => {
     activePatientsTab = 'list';
     tabList.classList.add('active');
-    tabLog.classList.remove('active');
+    tabLog?.classList.remove('active');
+    tabService?.classList.remove('active');
     if (secList) secList.style.display = 'block';
     if (secLog) secLog.style.display = 'none';
+    if (secService) secService.style.display = 'none';
   });
 
   tabLog?.addEventListener('click', () => {
     activePatientsTab = 'log';
     tabLog.classList.add('active');
-    tabList.classList.remove('active');
+    tabList?.classList.remove('active');
+    tabService?.classList.remove('active');
     if (secList) secList.style.display = 'none';
     if (secLog) secLog.style.display = 'block';
+    if (secService) secService.style.display = 'none';
+  });
+
+  tabService?.addEventListener('click', () => {
+    activePatientsTab = 'service';
+    tabService.classList.add('active');
+    tabList?.classList.remove('active');
+    tabLog?.classList.remove('active');
+    if (secList) secList.style.display = 'none';
+    if (secLog) secLog.style.display = 'none';
+    if (secService) secService.style.display = 'block';
+  });
+
+  // Service Record events
+  const painBefore = document.getElementById('s-pain-before');
+  const painAfter = document.getElementById('s-pain-after');
+  const lblBefore = document.getElementById('lbl-pain-before');
+  const lblAfter = document.getElementById('lbl-pain-after');
+
+  painBefore?.addEventListener('input', (e) => {
+    if (lblBefore) lblBefore.textContent = e.target.value;
+  });
+  painAfter?.addEventListener('input', (e) => {
+    if (lblAfter) lblAfter.textContent = e.target.value;
+  });
+
+  document.getElementById('sel-service-patient')?.addEventListener('change', (e) => {
+    window.activeServicePatientId = Number(e.target.value);
+    navigate('medical-records');
+  });
+
+  document.getElementById('btn-cancel-spa-record')?.addEventListener('click', () => {
+    activePatientsTab = 'list';
+    navigate('medical-records');
+  });
+
+  document.getElementById('form-spa-service')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pId = Number(document.getElementById('s-pat-id').value);
+    const patient = state.patients.find(p => p.id === pId);
+
+    const pBeforeVal = Number(painBefore.value);
+    const pAfterVal = Number(painAfter.value);
+    if (pBeforeVal < 0 || pBeforeVal > 10 || pAfterVal < 0 || pAfterVal > 10) {
+      alert('ข้อผิดพลาด: ค่าความเจ็บปวด Pain Score ต้องอยู่ระหว่าง 0 ถึง 10 เท่านั้น!');
+      return;
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+    // Store log to V3 store service_records
+    const record = {
+      patientId: pId,
+      painBefore: pBeforeVal,
+      painAfter: pAfterVal,
+      symptoms: document.getElementById('s-symptoms').value,
+      details: document.getElementById('s-details').value,
+      advice: document.getElementById('s-advice').value,
+      date: todayStr,
+      time: timeStr
+    };
+    await ClinicDB.addStoreData('service_records', record);
+    state.service_records = await ClinicDB.getStoreData('service_records');
+
+    alert(`🟢 บันทึกประวัติสปา/บริการความงามของคนไข้ ${patient.name} สำเร็จและจัดเก็บเข้าแฟ้มประวัติเรียบร้อยแล้ว!`);
+    activePatientsTab = 'list';
+    window.activePatientHistoryId = pId; // Auto view this patient's history to verify
+    window.activeServicePatientId = null;
+    navigate('medical-records');
   });
 
   // Select patient
@@ -2026,6 +2186,15 @@ export function renderConsultation(state) {
               </select>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-add-svc">เพิ่ม</button>
             </div>
+            
+            <!-- Custom Service Input -->
+            <div style="display:flex; gap:10px; margin-bottom:12px; align-items:center; background-color:#f1f5f9; padding:8px; border-radius:4px;">
+              <span style="font-size:12px; font-weight:600; color:var(--gray-600); white-space:nowrap;">หรือป้อนเอง:</span>
+              <input type="text" id="custom-svc-name" placeholder="ชื่อบริการ/หัตถการพิเศษ..." class="form-control" style="margin:0; flex-grow:1; font-size:13px; height:32px;">
+              <input type="number" step="any" id="custom-svc-price" placeholder="ราคา..." class="form-control" style="margin:0; width:90px; font-size:13px; height:32px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-add-custom-svc" style="height:32px;">เพิ่มรายการนอกคลัง</button>
+            </div>
+
             <div class="table-container" style="background-color:var(--gray-50);">
               <table id="tbl-consult-svcs">
                 <thead>
@@ -2051,6 +2220,16 @@ export function renderConsultation(state) {
               </select>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-add-med">จ่ายยา</button>
             </div>
+
+            <!-- Custom Medicine Input -->
+            <div style="display:flex; gap:10px; margin-bottom:12px; align-items:center; background-color:#f1f5f9; padding:8px; border-radius:4px;">
+              <span style="font-size:12px; font-weight:600; color:var(--gray-600); white-space:nowrap;">หรือป้อนเอง:</span>
+              <input type="text" id="custom-med-name" placeholder="ชื่อสมุนไพร/ยารักษาพิเศษ..." class="form-control" style="margin:0; flex-grow:1; font-size:13px; height:32px;">
+              <input type="number" id="custom-med-qty" placeholder="จำนวน..." min="1" value="1" class="form-control" style="margin:0; width:70px; font-size:13px; height:32px;">
+              <input type="number" step="any" id="custom-med-price" placeholder="ราคา..." class="form-control" style="margin:0; width:90px; font-size:13px; height:32px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-add-custom-med" style="height:32px;">จ่ายยานอกคลัง</button>
+            </div>
+
             <div class="table-container" style="background-color:var(--gray-50);">
               <table id="tbl-consult-meds">
                 <thead>
@@ -2135,6 +2314,21 @@ export function setupConsultationEvents(state, navigate) {
     refreshUI();
   });
 
+  document.getElementById('btn-add-custom-svc')?.addEventListener('click', () => {
+    const nameInput = document.getElementById('custom-svc-name');
+    const priceInput = document.getElementById('custom-svc-price');
+    const name = nameInput.value.trim();
+    if (!name) {
+      alert('กรุณากรอกชื่อบริการ/หัตถการพิเศษ');
+      return;
+    }
+    const price = Number(priceInput.value) || 0;
+    selectedServices.push({ itemId: 0, name: name, price: price, type: 'service' });
+    nameInput.value = '';
+    priceInput.value = '';
+    refreshUI();
+  });
+
   document.addEventListener('click', (e) => {
     if (e.target.classList.contains('btn-rm-svc')) {
       const idx = Number(e.target.dataset.idx);
@@ -2155,6 +2349,24 @@ export function setupConsultationEvents(state, navigate) {
       selectedPrescriptions.push({ itemId: item.id, name: item.name, qty: 1, price: item.price, unit: item.unit || 'ชิ้น' });
     }
     document.getElementById('sel-med').value = '';
+    refreshUI();
+  });
+
+  document.getElementById('btn-add-custom-med')?.addEventListener('click', () => {
+    const nameInput = document.getElementById('custom-med-name');
+    const qtyInput = document.getElementById('custom-med-qty');
+    const priceInput = document.getElementById('custom-med-price');
+    const name = nameInput.value.trim();
+    if (!name) {
+      alert('กรุณากรอกชื่อสมุนไพร/ยารักษาพิเศษ');
+      return;
+    }
+    const qty = Number(qtyInput.value) || 1;
+    const price = Number(priceInput.value) || 0;
+    selectedPrescriptions.push({ itemId: 0, name: name, qty: qty, price: price, unit: 'ชิ้น' });
+    nameInput.value = '';
+    qtyInput.value = '1';
+    priceInput.value = '';
     refreshUI();
   });
 
@@ -3070,7 +3282,7 @@ export function renderBilling(state) {
         <!-- Add item section -->
         <div style="margin-top:16px; border-top:1px dashed var(--gray-200); padding-top:16px; margin-bottom:20px;">
           <h4 style="font-weight:700; margin-bottom:8px; font-size:14px; color:var(--gray-700);">เพิ่มยาสมุนไพรหรือผลิตภัณฑ์สุขภาพเข้าบิล:</h4>
-          <div style="display:flex; gap:10px;">
+          <div style="display:flex; gap:10px; margin-bottom:10px;">
             <select id="bill-add-item-select" class="form-control" style="flex-grow:1; height:38px;">
               <option value="">-- เลือกยาหรือผลิตภัณฑ์ในคลัง --</option>
               ${state.inventory.filter(i => i.type === 'medicine').map(m => `<option value="${m.id}" data-price="${m.price}" ${m.stock < 1 ? 'disabled style="color:red;"' : ''}>💊 [ยา] ${m.name} (฿${m.price}) [คงคลัง: ${m.stock}]</option>`).join('')}
@@ -3078,6 +3290,19 @@ export function renderBilling(state) {
             </select>
             <input type="number" id="bill-add-qty" class="form-control" value="1" min="1" style="width:80px; text-align:center; height:38px;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-bill-add-item-submit" style="height:38px;">เพิ่มเข้าบิล</button>
+          </div>
+          
+          <!-- Custom Bill Item Input -->
+          <div style="display:flex; gap:10px; align-items:center; background-color:#f1f5f9; padding:8px; border-radius:4px;">
+            <span style="font-size:12px; font-weight:600; color:var(--gray-600); white-space:nowrap;">หรือป้อนรายการเอง:</span>
+            <select id="bill-custom-type" class="form-control" style="width:110px; margin:0; height:32px; font-size:12px;">
+              <option value="prescription">💊 ยา/สินค้า</option>
+              <option value="treatment">🩺 บริการ</option>
+            </select>
+            <input type="text" id="bill-custom-name" placeholder="ชื่อรายการพิเศษ..." class="form-control" style="margin:0; flex-grow:1; font-size:13px; height:32px;">
+            <input type="number" id="bill-custom-qty" placeholder="จำนวน..." min="1" value="1" class="form-control" style="margin:0; width:70px; font-size:13px; height:32px;">
+            <input type="number" step="any" id="bill-custom-price" placeholder="ราคา..." class="form-control" style="margin:0; width:90px; font-size:13px; height:32px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-bill-add-custom-submit" style="height:32px;">เพิ่มบิลเอง</button>
           </div>
         </div>
 
@@ -3307,6 +3532,44 @@ export function setupBillingEvents(state, navigate) {
         itemId: itemId,
         name: invItem.name,
         price: invItem.price,
+        qty: qty
+      });
+    }
+
+    ClinicDB.updateQueue(queueObj).then(() => {
+      navigate('billing');
+    });
+  });
+
+  document.getElementById('btn-bill-add-custom-submit')?.addEventListener('click', () => {
+    const nameInput = document.getElementById('bill-custom-name');
+    const typeSelect = document.getElementById('bill-custom-type');
+    const qtyInput = document.getElementById('bill-custom-qty');
+    const priceInput = document.getElementById('bill-custom-price');
+
+    const name = nameInput.value.trim();
+    if (!name) {
+      alert('กรุณากรอกชื่อรายการพิเศษ!');
+      return;
+    }
+    const type = typeSelect.value;
+    const qty = Math.max(1, Number(qtyInput.value) || 1);
+    const price = Number(priceInput.value) || 0;
+
+    if (type === 'treatment') {
+      queueObj.treatments = queueObj.treatments || [];
+      queueObj.treatments.push({
+        itemId: 0,
+        name: name,
+        price: price,
+        type: 'service'
+      });
+    } else {
+      queueObj.prescriptions = queueObj.prescriptions || [];
+      queueObj.prescriptions.push({
+        itemId: 0,
+        name: name,
+        price: price,
         qty: qty
       });
     }
