@@ -1048,8 +1048,6 @@ function renderQueueOriginal(state) {
         </div>
       </div>
     </div>
-  `;
-}
 
     <!-- Intake Modal -->
     <div class="modal-backdrop" id="modal-intake" style="display:none;">
